@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Guide Builder (LLM-assisted)</title>
+    <title>Hit Thunder Guide Maker</title>
 
     <!-- Favicon -->
     <link rel="icon"
@@ -125,6 +125,11 @@
 	            padding: 16px;
 	            gap: 16px;
 	        }
+	        @supports (height: 100dvh) {
+	            #app-container {
+	                height: 100dvh;
+	            }
+	        }
 
 	        #controls-sidebar {
 	            width: 460px;
@@ -144,13 +149,30 @@
 	        }
 
 	        @media (max-width: 950px) {
+	            html,
+	            body {
+	                height: auto;
+	                overflow: auto;
+	            }
+
 	            #app-container {
 	                flex-direction: column;
+	                padding: 12px;
+	                gap: 12px;
+	                height: auto;
+	                min-height: 100vh;
 	            }
 
 	            #controls-sidebar {
 	                width: 100%;
 	                min-width: 0;
+	                flex-shrink: 1;
+	                min-height: 0;
+	                max-height: 46vh;
+	            }
+
+	            #main-content {
+	                min-height: 0;
 	            }
 	        }
 
@@ -675,7 +697,7 @@
         <aside id="controls-sidebar">
             <header class="sidebar-header">
                 <h1 class="sidebar-logo">
-	                    <span id="app-title" data-i18n="appTitle">마스터리 매뉴얼 생성기</span>
+	                    <span id="app-title" data-i18n="appTitle">Hit Thunder Guide Maker</span>
                     <span id="api-call-counter">(API 호출: 0)</span>
                 </h1>
                 <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
@@ -1278,32 +1300,32 @@
                                 <div
                                     style="display:flex; gap:10px; font-size:11px; color:var(--text-3); font-family:monospace; padding:4px 0;">
                                     <div style="width:10px;"></div>
-                                    <div style="width:28px; text-align:right;">#</div>
-                                    <div style="width:90px;">키</div>
-                                    <div style="width:140px;">컨텍스트</div>
+                                    <div style="width:28px; text-align:right;" data-i18n="apiMonitorColIndex">#</div>
+                                    <div style="width:90px;" data-i18n="apiMonitorColKey">키</div>
+                                    <div style="width:140px;" data-i18n="apiMonitorColContext">컨텍스트</div>
                                     <div style="width:85px; text-align:right;">estTok</div>
                                     <div style="width:80px; text-align:right;">age</div>
                                     <div style="width:80px; text-align:right;">retry</div>
-                                    <div style="flex:1;">상태</div>
+                                    <div style="flex:1;" data-i18n="apiMonitorColStatus">상태</div>
                                 </div>
                                 <div class="log-mini" id="key-monitor-output" style="max-height:360px; font-size:12px;">
                                 </div>
                             </div>
                             <div style="flex:1; min-width:360px; min-height:0; display:flex; flex-direction:column;">
                                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-                                    <div style="font-size:11px; font-weight:bold; margin:2px 0;">최근 호출 (50)</div>
+                                    <div style="font-size:11px; font-weight:bold; margin:2px 0;" data-i18n="apiMonitorRecentCallsTitle">최근 호출 (50)</div>
                                     <div id="api-monitor-totals"
-                                        style="font-size:10px; font-family:monospace; color:var(--text-3);">호출 0 • 성공 0
-                                        • 실패 0</div>
+                                        style="font-size:10px; font-family:monospace; color:var(--text-3);"
+                                        data-i18n="apiMonitorTotalsInit">Calls 0 • inflight 0 • ok 0 • fail 0</div>
                                 </div>
                                 <div class="log-mini" id="api-monitor-recent-calls"
                                     style="max-height:360px; font-size:12px;"></div>
                             </div>
                             <div style="flex:1; min-width:360px; min-height:0; display:flex; flex-direction:column;">
                                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-                                    <div style="font-size:11px; font-weight:bold; margin:2px 0;">호출 브레이크다운 (성공)</div>
+                                    <div style="font-size:11px; font-weight:bold; margin:2px 0;" data-i18n="apiMonitorBreakdownTitle">호출 브레이크다운 (성공)</div>
 	                                    <button id="reset-call-breakdown-btn" class="ui-btn"
-	                                        style="padding:2px 6px; font-size:12px;">초기화</button>
+	                                        style="padding:2px 6px; font-size:12px;" data-i18n="apiMonitorBreakdownResetButton">초기화</button>
                                 </div>
                                 <div class="log-mini" id="api-monitor-breakdown"
                                     style="max-height:360px; font-size:12px;"></div>
@@ -1311,55 +1333,53 @@
                         </div>
                     </details>
 
-                    <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">프로세스 로그</h3>
+                    <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;" data-i18n="processLogTitle">프로세스 로그</h3>
                     <div id="log-tools"
                         style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom: 0.5rem;">
                         <div style="display:flex; gap:6px; align-items:center;">
-                            <label for="log-ui-max-lines-input" style="font-size:12px; color:var(--text-2);">표시
-                                줄수</label>
+                            <label for="log-ui-max-lines-input" style="font-size:12px; color:var(--text-2);" data-i18n="logUiMaxLinesLabel">표시 줄수</label>
 	                            <input type="number" id="log-ui-max-lines-input" class="ui-input" min="50" max="5000"
 	                                value="300" style="width:90px;">
                         </div>
                         <div style="display:flex; gap:6px; align-items:center;">
-                            <label for="log-ui-max-chars-input" style="font-size:12px; color:var(--text-2);">줄당
-                                글자수</label>
+                            <label for="log-ui-max-chars-input" style="font-size:12px; color:var(--text-2);" data-i18n="logUiMaxCharsLabel">줄당 글자수</label>
 	                            <input type="number" id="log-ui-max-chars-input" class="ui-input" min="80" max="50000"
 	                                value="800" style="width:110px;">
                         </div>
                         <div style="display:flex; gap:6px; align-items:center;">
-                            <label for="log-filter-type-select" style="font-size:12px; color:var(--text-2);">타입</label>
+                            <label for="log-filter-type-select" style="font-size:12px; color:var(--text-2);" data-i18n="logFilterTypeLabel">타입</label>
 	                            <select id="log-filter-type-select" class="ui-input" style="width:180px;">
-                                <option value="all">전체</option>
-                                <option value="api_input">API 입력</option>
-                                <option value="api_output">API 출력</option>
-                                <option value="errors">경고+에러</option>
-                                <option value="errors_no_api_http">경고+에러(HTTP 429/5xx 제외)</option>
+                                <option value="all" data-i18n="logFilterTypeAll">전체</option>
+                                <option value="api_input" data-i18n="logFilterTypeApiInput">API 입력</option>
+                                <option value="api_output" data-i18n="logFilterTypeApiOutput">API 출력</option>
+                                <option value="errors" data-i18n="logFilterTypeErrors">경고+에러</option>
+                                <option value="errors_no_api_http" data-i18n="logFilterTypeErrorsNoHttp">경고+에러(HTTP 429/5xx 제외)</option>
                             </select>
                         </div>
                         <div style="display:flex; gap:6px; align-items:center;">
                             <label for="log-filter-session-select"
-                                style="font-size:12px; color:var(--text-2);">세션</label>
+                                style="font-size:12px; color:var(--text-2);" data-i18n="logFilterSessionLabel">세션</label>
 	                            <select id="log-filter-session-select" class="ui-input" style="width:220px;">
-                                <option value="current">현재 세션</option>
-                                <option value="all">전체 세션</option>
+                                <option value="current" data-i18n="logFilterSessionCurrent">현재 세션</option>
+                                <option value="all" data-i18n="logFilterSessionAll">전체 세션</option>
                             </select>
                         </div>
                         <div style="display:flex; gap:6px; align-items:center;">
                             <label for="log-filter-phase-select"
-                                style="font-size:12px; color:var(--text-2);">페이즈</label>
+                                style="font-size:12px; color:var(--text-2);" data-i18n="logFilterPhaseLabel">페이즈</label>
 	                            <select id="log-filter-phase-select" class="ui-input" style="width:210px;">
-                                <option value="all">전체</option>
-                                <option value="phase0">0단계 (추출)</option>
-                                <option value="phase1">1단계 (유형분류)</option>
-                                <option value="phase2">2단계 (가이드/커버리지)</option>
-                                <option value="phase3">3단계 (최종)</option>
-                                <option value="other">기타</option>
+                                <option value="all" data-i18n="logFilterPhaseAll">전체</option>
+                                <option value="phase0" data-i18n="logFilterPhase0">0단계 (추출)</option>
+                                <option value="phase1" data-i18n="logFilterPhase1">1단계 (유형분류)</option>
+                                <option value="phase2" data-i18n="logFilterPhase2">2단계 (가이드/커버리지)</option>
+                                <option value="phase3" data-i18n="logFilterPhase3">3단계 (최종)</option>
+                                <option value="other" data-i18n="logFilterPhaseOther">기타</option>
                             </select>
                         </div>
 	                        <input type="text" id="log-filter-query-input" class="ui-input"
-	                            placeholder="검색 (context/message)" style="width:240px;">
-	                        <button id="download-logs-btn" class="ui-btn">다운로드(필터됨)</button>
-	                        <button id="clear-logs-btn" class="ui-btn">화면 지우기</button>
+	                            placeholder="Search (context/message)" style="width:240px;" data-i18n-placeholder="logFilterQueryPlaceholder">
+	                        <button id="download-logs-btn" class="ui-btn" data-i18n="logDownloadButton">다운로드(필터됨)</button>
+	                        <button id="clear-logs-btn" class="ui-btn" data-i18n="logClearButton">화면 지우기</button>
                     </div>
 		                    <details id="format-errors-details" class="ui-panel" style="margin: 0.5rem 0;">
 		                        <summary id="summary-format-errors" data-i18n="summaryFormatErrors">형식 오류(구조화 출력) — raw I/O 모음</summary>
@@ -1367,9 +1387,9 @@
                             <div id="format-errors-summary"
                                 style="font-size:12px; color:var(--text-3); font-family:monospace;">0 entries</div>
 	                            <button id="format-errors-clear-btn" class="ui-btn"
-	                                style="padding:2px 6px; font-size:12px;">초기화</button>
+	                                style="padding:2px 6px; font-size:12px;" data-i18n="formatErrorsClearButton">초기화</button>
 	                            <button id="format-errors-download-btn" class="ui-btn"
-	                                style="padding:2px 6px; font-size:12px;">다운로드(JSON)</button>
+	                                style="padding:2px 6px; font-size:12px;" data-i18n="formatErrorsDownloadButton">다운로드(JSON)</button>
                         </div>
                         <div class="log-mini" id="format-errors-output" style="max-height:260px; white-space:pre-wrap;">
                         </div>
@@ -3772,7 +3792,14 @@
                 const totalsEl = document.getElementById('api-monitor-totals');
                 if (!outEl) return;
                 const totals = __computeTotals();
-                if (totalsEl) totalsEl.textContent = `호출 ${totals.total} • inflight ${totals.inflight} • 성공 ${totals.ok} • 실패 ${totals.fail}`;
+                if (totalsEl) {
+                    totalsEl.textContent = __tGuiFmt('apiMonitorTotalsFmt', {
+                        total: totals.total,
+                        inflight: totals.inflight,
+                        ok: totals.ok,
+                        fail: totals.fail
+                    });
+                }
 
                 // Always show inflight calls, plus most recent completed calls to fill up to 50 lines.
                 const inflight = Array.from(state.inflight.values());
@@ -11472,8 +11499,8 @@ ${explanationWithGlobal}
 
             // 1. Summary Header
             const pending = modules.filter(m => m.status === 'pending').length;
-            const running = modules.filter(m => m.status === 'running').length;
-            const done = modules.filter(m => m.status === 'done').length;
+            const processing = modules.filter(m => m.status === 'processing').length;
+            const completed = modules.filter(m => m.status === 'completed').length;
             const error = modules.filter(m => m.status === 'error').length;
             const total = modules.length;
 
@@ -11483,8 +11510,8 @@ ${explanationWithGlobal}
                 <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-bottom: 0.5rem;">
                   <span>전체 ${total}</span>
                   <span class="status-badge status-pending">대기 ${pending}</span>
-                  <span class="status-badge status-running">진행중 ${running}</span>
-                  <span class="status-badge status-done">완료 ${done}</span>
+                  <span class="status-badge status-processing">진행중 ${processing}</span>
+                  <span class="status-badge status-completed">완료 ${completed}</span>
                   <span class="status-badge status-error">오류 ${error}</span>
                 </div>
                 <details>
@@ -11661,19 +11688,26 @@ ${explanationWithGlobal}
             const g = activeProcess.phase3_finalManual || {};
             const content = g.content ||
                 (g.status === 'pending'
-                    ? "아직 완료되지 않았습니다."
-                    : "최종 합본 생성 중...");
+                    ? __tGui('finalGuideNotReady')
+                    : __tGui('finalGuideBuilding'));
 
 	            return `
 		              <div class="ui-panel">
 	                  <h3 style="color: var(--accent);">
-	                    최종 요약본
+	                    ${escapeHtmlForInnerHTML(__tGui('finalGuideTitle'))}
 	                    <span class="status-badge status-${g.status}">${g.status}</span>
 	                  </h3>
 	                  ${g.error ? `<p style="color: var(--error-color);">${escapeHtmlForInnerHTML(g.error)}</p>` : ''}
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top: 0.25rem;">
+                      <button class="ui-btn" id="download-renderer-save-btn"
+                        style="border-color: var(--secondary-accent); background: rgba(56, 189, 248, 0.10);"
+                        ${!g.content ? 'disabled' : ''}>
+                        ${escapeHtmlForInnerHTML(__tGui('finalGuideDownloadRendererSaveButton'))}
+                      </button>
+                    </div>
 		                  <textarea class="ui-input" rows="20" readonly>${content}</textarea>
 		                  <button class="ui-btn" id="download-btn" style="margin-top: 1rem;" ${!g.content ? 'disabled' : ''}>
-		                      다운로드 (.txt)
+		                      ${escapeHtmlForInnerHTML(__tGui('finalGuideDownloadTxtButton'))}
 		                  </button>
 		              </div>
 		          `;
@@ -11694,37 +11728,73 @@ ${explanationWithGlobal}
             }
         });
 
+        function __buildTypeProblemsBundleForExport() {
+            const perQ = activeProcess?.phase1_patterns?.perQuestion || [];
+            if (!perQ.length) throw new Error(__tGui('exportNoTypeResultsError'));
+            const p1 = activeProcess?.phase1_patterns || {};
+            const globalTypeNameMap = p1?.globalTypeNameMap;
+            const all = collectAllQuestions();
+            const byId = new Map(all.map(q => [q.qid, q]));
+            const types = {};
+            const missingQids = [];
+            perQ.forEach((pq) => {
+                const qid = pq?.qid;
+                const pattern_name = pq?.pattern_name;
+                const subgroupTag = String(pq?.subgroup_tag || '').trim();
+                const q = byId.get(qid);
+                if (!q) { missingQids.push(qid); return; }
+                const finalTypeName = globalTypeNameMap?.[pattern_name] || pattern_name;
+                const item = {
+                    qid: q.qid,
+                    paperName: q.paperName,
+                    question_text: q.question_text,
+                    answer_choices: q.answer_choices || '',
+                    official_answer: q.official_answer || null,
+                    official_explanation: q.official_explanation || null
+                };
+                if (subgroupTag) item.subgroup_tag = subgroupTag;
+                (types[finalTypeName] ||= []).push(item);
+            });
+            return { types, missingQids, phase1: p1 };
+        }
+
+        // Download renderer import save (fmm_export.json-compatible)
+        document.body.addEventListener('click', e => {
+            if (e.target && e.target.id === 'download-renderer-save-btn') {
+                try {
+                    const guide = String(activeProcess?.phase3_finalManual?.content || '').trim();
+                    if (!guide) { alert(__tGui('exportNoFinalGuideAlert')); return; }
+                    const { types } = __buildTypeProblemsBundleForExport();
+                    const guiLang = (getEl('gui-lang-select')?.value === 'ko') ? 'ko' : 'en';
+                    const bundle = {
+                        __fmm_bundle__: 1,
+                        exportedAt: new Date().toISOString(),
+                        items: {
+                            fmm_source: { kind: 'raw', value: guide },
+                            fmm_problems_json: { kind: 'json', value: { types } },
+                            fmm_ui_lang: { kind: 'raw', value: guiLang }
+                        }
+                    };
+                    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+                    const a = document.createElement('a');
+                    a.download = `fmm_export_from_guide_maker_${new Date().toISOString().slice(0, 10)}.json`;
+                    a.href = URL.createObjectURL(blob);
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                } catch (err) {
+                    logger.error('Export', `Failed to export renderer save: ${err.message}`);
+                    alert(__tGui('exportFailedCheckLogsAlert'));
+                }
+            }
+        });
+
         // Download types + original problems bundle
         document.body.addEventListener('click', e => {
             if (e.target && e.target.id === 'download-type-bundle-btn') {
                 try {
-                    const perQ = activeProcess?.phase1_patterns?.perQuestion || [];
-                    if (!perQ.length) { alert('아직 유형분류 결과가 없습니다. (1단계를 먼저 실행하세요)'); return; }
-                    const p1 = activeProcess?.phase1_patterns || {};
+                    const { types, missingQids, phase1: p1 } = __buildTypeProblemsBundleForExport();
                     const globalTypeNameMap = p1?.globalTypeNameMap;
                     const pipelineCfg = getPipelineConfig(activeProcess);
-                    const all = collectAllQuestions();
-                    const byId = new Map(all.map(q => [q.qid, q]));
-                    const bundle = {};
-                    const missingQids = [];
-                    perQ.forEach((pq) => {
-                        const qid = pq?.qid;
-                        const pattern_name = pq?.pattern_name;
-                        const subgroupTag = String(pq?.subgroup_tag || '').trim();
-                        const q = byId.get(qid);
-                        if (!q) { missingQids.push(qid); return; }
-                        const finalTypeName = globalTypeNameMap?.[pattern_name] || pattern_name;
-                        const item = {
-                            qid: q.qid,
-                            paperName: q.paperName,
-                            question_text: q.question_text,
-                            answer_choices: q.answer_choices || '',
-                            official_answer: q.official_answer || null,
-                            official_explanation: q.official_explanation || null
-                        };
-                        if (subgroupTag) item.subgroup_tag = subgroupTag;
-                        (bundle[finalTypeName] ||= []).push(item);
-                    });
                     const exportObj = {
                         generatedAt: new Date().toISOString(),
                         config: {
@@ -11745,7 +11815,7 @@ ${explanationWithGlobal}
                             globalTypeNameMap: globalTypeNameMap || null,
                         },
                         missingQids,
-                        types: bundle
+                        types
                     };
                     const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
                     const a = document.createElement('a');
@@ -11755,7 +11825,7 @@ ${explanationWithGlobal}
                     URL.revokeObjectURL(a.href);
                 } catch (err) {
                     logger.error('Export', `Failed to export bundle: ${err.message}`);
-                    alert('내보내기에 실패했습니다. 로그를 확인하세요.');
+                    alert(__tGui('exportFailedCheckLogsAlert'));
                 }
             }
         });
@@ -12111,7 +12181,7 @@ ${explanationWithGlobal}
 	        const GUI_LANG_STORAGE_KEY = 'mastery_manual_gui_lang_v1';
 	        const GUI_I18N = {
 	            en: {
-		                appTitle: 'Study Guide Builder',
+		                appTitle: 'Hit Thunder Guide Maker',
 	                guiLangLabel: 'GUI Language',
 	                guiLangOptionEnglish: 'English',
 	                guiLangOptionKorean: 'Korean',
@@ -12139,6 +12209,51 @@ ${explanationWithGlobal}
 	                summaryPromptsAdvanced: 'Prompts (Advanced)',
 	                summaryApiMonitor: 'API Monitor',
 	                summaryFormatErrors: 'Format Errors (Structured Output) — raw I/O',
+	
+	                apiMonitorColIndex: '#',
+	                apiMonitorColKey: 'Key',
+	                apiMonitorColContext: 'Context',
+	                apiMonitorColStatus: 'Status',
+	                apiMonitorRecentCallsTitle: 'Recent calls (50)',
+	                apiMonitorTotalsInit: 'Calls 0 • inflight 0 • ok 0 • fail 0',
+	                apiMonitorTotalsFmt: 'Calls {total} • inflight {inflight} • ok {ok} • fail {fail}',
+	                apiMonitorBreakdownTitle: 'Call breakdown (OK)',
+	                apiMonitorBreakdownResetButton: 'Reset',
+	
+	                processLogTitle: 'Process log',
+	                logUiMaxLinesLabel: 'Visible lines',
+	                logUiMaxCharsLabel: 'Chars/line',
+	                logFilterTypeLabel: 'Type',
+	                logFilterTypeAll: 'All',
+	                logFilterTypeApiInput: 'API input',
+	                logFilterTypeApiOutput: 'API output',
+	                logFilterTypeErrors: 'Warnings + errors',
+	                logFilterTypeErrorsNoHttp: 'Warnings + errors (except HTTP 429/5xx)',
+	                logFilterSessionLabel: 'Session',
+	                logFilterSessionCurrent: 'Current session',
+	                logFilterSessionAll: 'All sessions',
+	                logFilterPhaseLabel: 'Phase',
+	                logFilterPhaseAll: 'All',
+	                logFilterPhase0: 'Phase 0 (Extraction)',
+	                logFilterPhase1: 'Phase 1 (Type classification)',
+	                logFilterPhase2: 'Phase 2 (Guides/Coverage)',
+	                logFilterPhase3: 'Phase 3 (Final)',
+	                logFilterPhaseOther: 'Other',
+	                logFilterQueryPlaceholder: 'Search (context/message)',
+	                logDownloadButton: 'Download (filtered)',
+	                logClearButton: 'Clear view',
+	                formatErrorsClearButton: 'Clear',
+	                formatErrorsDownloadButton: 'Download (JSON)',
+	
+	                finalGuideTitle: 'Final guide',
+	                finalGuideNotReady: 'Not completed yet.',
+	                finalGuideBuilding: 'Building final guide...',
+	                finalGuideDownloadRendererSaveButton: 'Download renderer save (.json)',
+	                finalGuideDownloadTxtButton: 'Download (.txt)',
+	
+	                exportNoTypeResultsError: 'No type classification results yet. (Run Phase 1 first.)',
+	                exportNoFinalGuideAlert: 'No final guide yet. (Complete Phase 3 first.)',
+	                exportFailedCheckLogsAlert: 'Export failed. Check the logs.',
 	
 	                apiKeysLabel: 'API keys (one per line)',
 	                apiKeysPlaceholder: 'Enter keys\n(one per line)',
@@ -12324,7 +12439,7 @@ ${explanationWithGlobal}
 	                startButtonStop: 'Stop',
 	            },
 	            ko: {
-	                appTitle: '마스터리 매뉴얼 생성기',
+	                appTitle: '히트썬더 가이드 생성기',
 	                guiLangLabel: 'GUI 언어',
 	                guiLangOptionEnglish: '영어',
 	                guiLangOptionKorean: '한국어',
@@ -12352,6 +12467,51 @@ ${explanationWithGlobal}
 	                summaryPromptsAdvanced: '프롬프트(고급)',
 	                summaryApiMonitor: 'API 모니터',
 	                summaryFormatErrors: '형식 오류(구조화 출력) — raw I/O 모음',
+	
+	                apiMonitorColIndex: '#',
+	                apiMonitorColKey: '키',
+	                apiMonitorColContext: '컨텍스트',
+	                apiMonitorColStatus: '상태',
+	                apiMonitorRecentCallsTitle: '최근 호출 (50)',
+	                apiMonitorTotalsInit: '호출 0 • inflight 0 • 성공 0 • 실패 0',
+	                apiMonitorTotalsFmt: '호출 {total} • inflight {inflight} • 성공 {ok} • 실패 {fail}',
+	                apiMonitorBreakdownTitle: '호출 브레이크다운 (성공)',
+	                apiMonitorBreakdownResetButton: '초기화',
+	
+	                processLogTitle: '프로세스 로그',
+	                logUiMaxLinesLabel: '표시 줄수',
+	                logUiMaxCharsLabel: '줄당 글자수',
+	                logFilterTypeLabel: '타입',
+	                logFilterTypeAll: '전체',
+	                logFilterTypeApiInput: 'API 입력',
+	                logFilterTypeApiOutput: 'API 출력',
+	                logFilterTypeErrors: '경고+에러',
+	                logFilterTypeErrorsNoHttp: '경고+에러(HTTP 429/5xx 제외)',
+	                logFilterSessionLabel: '세션',
+	                logFilterSessionCurrent: '현재 세션',
+	                logFilterSessionAll: '전체 세션',
+	                logFilterPhaseLabel: '페이즈',
+	                logFilterPhaseAll: '전체',
+	                logFilterPhase0: '0단계 (추출)',
+	                logFilterPhase1: '1단계 (유형분류)',
+	                logFilterPhase2: '2단계 (가이드/커버리지)',
+	                logFilterPhase3: '3단계 (최종)',
+	                logFilterPhaseOther: '기타',
+	                logFilterQueryPlaceholder: '검색 (context/message)',
+	                logDownloadButton: '다운로드(필터됨)',
+	                logClearButton: '화면 지우기',
+	                formatErrorsClearButton: '초기화',
+	                formatErrorsDownloadButton: '다운로드(JSON)',
+	
+	                finalGuideTitle: '최종 요약본',
+	                finalGuideNotReady: '아직 완료되지 않았습니다.',
+	                finalGuideBuilding: '최종 합본 생성 중...',
+	                finalGuideDownloadRendererSaveButton: '렌더러 저장파일 다운로드 (.json)',
+	                finalGuideDownloadTxtButton: '다운로드 (.txt)',
+	
+	                exportNoTypeResultsError: '아직 유형분류 결과가 없습니다. (1단계를 먼저 실행하세요)',
+	                exportNoFinalGuideAlert: '아직 최종 요약본이 없습니다. (3단계를 완료하세요)',
+	                exportFailedCheckLogsAlert: '내보내기에 실패했습니다. 로그를 확인하세요.',
 	
 	                apiKeysLabel: 'API 키 (줄당 1개)',
 	                apiKeysPlaceholder: '키를 입력하세요\n(줄당 1개)',
@@ -12614,6 +12774,7 @@ ${explanationWithGlobal}
 		        function __applyGuiLanguage(lang) {
 		            __guiLang = (lang === 'ko') ? 'ko' : 'en';
 		            __applyI18nToDocument();
+	            try { document.title = __tGui('appTitle'); } catch { }
 		
 		            const stdLangEl = getEl('std-problem-lang-input');
 		            if (stdLangEl) {

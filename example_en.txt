@@ -1,17 +1,17 @@
-# User Guide (example_en.txt)
+# Hit Thunder Renderer — Example Guide (example_en.txt)
 
 ## Standard Problem
-This file is an example guide that the renderer auto-loads **only when you open it with no saved guide**.
+This is an example guide that `renderer.html` auto-loads **only when you open it with no saved guide**.
 
-- Click `🚀 Render` to view it in reader mode.
-- `✏️ Edit` shows/hides the raw Markdown textarea.
-- `Render edit` (next to Edit) lets you **click rendered blocks** to edit + save quickly.
-- You can delete this type/file anytime (once you load your real guide, it will be replaced anyway).
+Quick start (your real data):
+
+- Recommended: in `summary.html` (Hit Thunder Guide Maker), build from your exam PDF/TXT → download the **renderer save file (.json)** → in `renderer.html` click `⭱ Import`.
+- Or: load the **guide** via `📑 Guide`, then load **type problems** via `📂 Problems`.
 
 ---
 
 ## Purpose
-Final Mastery Manual Viewer is a **single-file HTML study workspace**:
+Hit Thunder Renderer is a **single-file HTML study workspace**:
 
 - Render your Markdown guide in a clean reader view
 - Load problem sets (JSON) and practice in Solve mode
@@ -21,13 +21,12 @@ Final Mastery Manual Viewer is a **single-file HTML study workspace**:
 
 By default, nothing is uploaded; data lives in your browser (localStorage/sessionStorage/IndexedDB).
 
-## Quick start
-1) Choose UI language (EN / 한국어)
-2) `✏️ Edit` → review/edit the guide text → `🚀 Render`
-3) Load problems JSON with `📂 Problems`
-4) Start/continue a session with `🧩 Solve`
-5) Combine filters in `📊 Stats`, then “Collect” to create a review session
-6) Backup often with `⭳ Export` or `💾 Saves`
+## Buttons / features (very short)
+- `🧩 Solve`: practice mode (sessions, grading, notes)
+- `📊 Stats`: filter + collect review sets
+- `🗒️ Global memo` / `📌 Type memo`: long-term notes
+- `A- / A+` and `⇔` width controls: readability (especially on mobile)
+- `⭳ Export` / `⭱ Import`: full backup/restore
 
 ## 1) Guide format (Markdown → Types)
 The guide textarea is split into types using a separator line.

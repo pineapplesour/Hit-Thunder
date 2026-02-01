@@ -11,8 +11,8 @@ The world is changing fast, but we still get judged by overfitted, old-school ex
 ## What’s in here
 
 - `index.html`: a simple landing page (useful for GitHub Pages).
-- `renderer.html`: a Markdown + LaTeX guide viewer with an exam-style practice mode.
-- `summary.html`: the core guide-building tool that generates/refines the exact guide format `renderer.html` reads.
+- `renderer.html` (**Hit Thunder Renderer**): a guide viewer + exam-style practice workspace.
+- `summary.html` (**Hit Thunder Guide Maker**): the core tool that turns exam PDFs/TXT into a renderer-readable guide (and problems JSON).
 - `example_en.txt`, `example_ko.txt`: example guides (they auto-load based on UI language when no guide is saved).
 
 ## Quick start
@@ -21,6 +21,34 @@ The world is changing fast, but we still get judged by overfitted, old-school ex
 You can usually run it by double-clicking `index.html` (or `renderer.html` / `summary.html`).
 
 If your browser blocks `fetch()` on `file://`, use a local server (below).
+
+## Workflow (Guide Maker → Renderer)
+
+### 1) Build a guide from exam files
+Open `summary.html` and just drop your past-exam files:
+
+- PDF: runs OCR in-browser, then splits questions and builds a study guide.
+- TXT: uses the text directly (no OCR).
+
+When it finishes, download either:
+
+- **One-file import (recommended):** a renderer save file (`.json`) you can import in one shot.
+- Or download **guide** (`.txt`) and **type problems** (`.json`) separately (still supported).
+
+### 2) Use it in the renderer
+Open `renderer.html`, then choose one:
+
+- **One-file import:** `⭱ Import` → select the save file JSON exported by the Guide Maker.
+- **Separate import:** `📑 Guide` → load the guide text, then `📂 Problems` → load the problems JSON.
+
+## Renderer buttons (high level)
+
+- `📑 Guide`: load/replace the guide text file.
+- `📂 Problems`: load the type problems JSON (for Solve/Stats).
+- `🧩 Solve`: practice in an exam-like flow (sessions, grading, notes).
+- `📊 Stats`: filter by tags/history and collect review sets.
+- `⭳ Export` / `⭱ Import`: backup/restore everything (including guide/problems/memos/history).
+- `A- / A+` and `⇔` width controls: adjust readability (useful on mobile).
 
 ### Option A (recommended): run a tiny local web server
 Some browsers restrict `fetch()` when opening HTML files via `file://`. A local server avoids that.

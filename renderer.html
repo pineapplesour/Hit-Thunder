@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Exam Study Workbench</title>
+  <title>Hit Thunder Renderer</title>
   <!-- ADD: Favicon (✏️)
        ideology: recognizable tab makes returning to study faster -->
   <link rel="icon"
@@ -463,7 +463,8 @@
     .cols {
       display: grid;
       gap: 14px;
-      grid-template-columns: minmax(240px, 1fr) minmax(340px, 2fr);
+      /* FIX: keep stable column widths across types (avoid min-content-driven shifts) */
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
     }
 
     .col {
@@ -471,6 +472,7 @@
       border-radius: var(--radius);
       background: var(--bg-elev);
       padding: 14px;
+      min-width: 0;
       min-height: 120px;
     }
 
@@ -1662,15 +1664,15 @@
   <header>
     <div class="bar">
       <div class="brand">
-        <div class="logo">FM</div>
+        <div class="logo">HT</div>
         <div>
-          <div>Exam Study Workbench</div>
-          <div class="pill">표준문제 좌측 · 해설 우측 · 유형 탭 이동</div>
+          <div id="appBrandTitle">Hit Thunder Renderer</div>
+          <div class="pill" id="appBrandPill">Guide viewer · practice mode · type tabs</div>
         </div>
       </div>
       <div class="actions">
         <!-- ADD: Guide file loader -->
-        <button class="btn" id="guideLoadBtn" title="가이드 불러오기">📄 가이드</button>
+        <button class="btn" id="guideLoadBtn" title="가이드 불러오기">📑 가이드</button>
         <button class="btn" id="guideMergeBtn" title="가이드 패치 병합">🧩 병합</button>
         <button class="btn" id="guideMergeBundleBtn" title="저장파일(fmm_export.json)+패치 병합 → 새 저장파일 다운로드">🧩 저장병합</button>
         <!-- ADD: Guide panel open/close toggle -->
@@ -4252,9 +4254,12 @@
 	    // === I18N (UI language) =======================================================
 	    const I18N = {
 	      en: {
+	        doc_title: 'Hit Thunder Renderer',
 	        ui_language: 'UI language',
+	        app_brand_title: 'Hit Thunder Renderer',
+	        app_brand_pill: 'Guide viewer · practice mode · type tabs',
 	        // Header / toolbar
-	        btn_guide: '📂 Guide',
+	        btn_guide: '📑 Guide',
 	        title_guide_load: 'Load guide file',
 	        btn_patch_merge: '🧩 Merge',
 	        title_patch_merge: 'Merge guide patch',
@@ -4310,9 +4315,12 @@
 	        theme_dark: '🌓 Dark'
 	      },
 	      ko: {
+	        doc_title: '히트썬더 렌더러',
 	        ui_language: 'UI 언어',
+	        app_brand_title: '히트썬더 렌더러',
+	        app_brand_pill: '가이드 뷰어 · 문제풀이 · 유형 탭',
 	        // Header / toolbar
-	        btn_guide: '📂 가이드',
+	        btn_guide: '📑 가이드',
 	        title_guide_load: '가이드 파일 불러오기',
 	        btn_patch_merge: '🧩 병합',
 	        title_patch_merge: '가이드 패치 병합',
@@ -4613,7 +4621,14 @@
 		    }
 		    function applyI18n() {
 		      try { document.documentElement.lang = currentLang; } catch { }
+		      try { document.title = t('doc_title'); } catch { }
 		      if (langSelect) langSelect.title = t('ui_language');
+	
+	      // Header brand
+	      const brandTitle = document.getElementById('appBrandTitle');
+	      if (brandTitle) brandTitle.textContent = t('app_brand_title');
+	      const brandPill = document.getElementById('appBrandPill');
+	      if (brandPill) brandPill.textContent = t('app_brand_pill');
 	
 	      // Header buttons
 	      if (guideLoadBtn) { guideLoadBtn.textContent = t('btn_guide'); guideLoadBtn.title = t('title_guide_load'); }
