@@ -1,0 +1,10 @@
+*.Zone.Identifier
+.DS_Store
+Thumbs.db
+
+# Common exports/backups (local)
+fmm_export*.json
+*.export.json
+*.backup.json
+*.bak
+

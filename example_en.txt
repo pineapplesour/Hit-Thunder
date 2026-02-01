@@ -1,0 +1,1392 @@
+# User Guide (example_en.txt)
+
+## Standard Problem
+This file is an example guide that the renderer auto-loads **only when you open it with no saved guide**.
+
+- Click `🚀 Render` to view it in reader mode.
+- `✏️ Edit` shows/hides the raw Markdown textarea.
+- `Render edit` (next to Edit) lets you **click rendered blocks** to edit + save quickly.
+- You can delete this type/file anytime (once you load your real guide, it will be replaced anyway).
+
+---
+
+## Purpose
+Final Mastery Manual Viewer is a **single-file HTML study workspace**:
+
+- Render your Markdown guide in a clean reader view
+- Load problem sets (JSON) and practice in Solve mode
+- Store memos/tags/solve history in your browser
+- Combine filters in Stats to collect/review problems
+- Backup/restore everything via Export/Import
+
+By default, nothing is uploaded; data lives in your browser (localStorage/sessionStorage/IndexedDB).
+
+## Quick start
+1) Choose UI language (EN / 한국어)
+2) `✏️ Edit` → review/edit the guide text → `🚀 Render`
+3) Load problems JSON with `📂 Problems`
+4) Start/continue a session with `🧩 Solve`
+5) Combine filters in `📊 Stats`, then “Collect” to create a review session
+6) Backup often with `⭳ Export` or `💾 Saves`
+
+## 1) Guide format (Markdown → Types)
+The guide textarea is split into types using a separator line.
+
+- Separator line: a line with 8+ equals signs (`=`), surrounded by newlines
+  - Example: `============`
+- Inside each segment, the app looks for:
+  - `## Standard Problem`
+  - reads until the first `---` line as the standard problem block
+  - everything after `---` becomes the explanation/notes block
+- The type title is the nearest preceding H1 line (`# Title`) above `## Standard Problem`.
+
+Minimal template:
+```md
+# Type title
+
+## Standard Problem
+...problem...
+---
+...explanation / notes...
+============
+
+
+# Fundamental Electrical Concepts, Units, and Materials
+
+## Standard Problem
+We intend to perform silver plating by electrolyzing a silver nitrate ($AgNO_3$) solution. When a current of 5[A] flows for 30 minutes, approximately what is the amount of silver (Ag) deposited at the cathode in [g]? (Note: The electrochemical equivalent of silver is $1.118 \times 10^{-3}$ [g/C].)
+              Choices: ① 0.17
+② 1.68
+③ 10.06
+④ 33.54
+
+**Answer:** ③
+
+---
+
+## Coverage
+(example.txt: QIDs removed)
+
+## Verification Summary
+- Cycles: 6 (pass 3 / fail 1)
+- Final decision: pass
+- Consecutive-pass streak at finish: 2 (target: 2)
+
+---
+
+## Detailed Explanation
+### **Concept Explanation**
+
+#### 1. Flow of Electricity: Current and Electric Charge
+
+The essence of what we call 'electricity' in daily life is the movement of tiny particles called **electrons**. The flow of electrons moving in one direction inside a wire is called **electric current**.
+
+- **Current ($I$)**: A quantity indicating how strongly electricity flows. The unit used is the **Ampere [A]**. A current of 5[A] means 5 times more electrons are flowing than a current of 1[A].
+
+- **Electric Charge ($Q$)**: The total amount of electricity that has flowed over a certain period. In other words, it indicates how many electrons have moved. The unit used is the **Coulomb [C]**.
+
+There is a very important relationship between current, electric charge, and time. Current represents 'how much electric charge has flowed during 1 second'.
+$$ \text{Current} = \frac{\text{Electric Charge}}{\text{Time}} $$
+Expressing this with symbols:
+$$ I = \frac{Q}{t} $$
+| Symbol | Meaning | Unit |
+|:---:|:---|:---|
+| $I$ | Current | Ampere [A] |
+| $Q$ | Charge | Coulomb [C] |
+| $t$ | Time | Second [s] |
+
+By rearranging this formula, we can calculate the total electric charge that flowed during a specific time.
+$$ Q = I \times t $$
+**Why is this formula important?**: This formula allows us to calculate the total amount of electricity that has flowed if we know the intensity of the current and the time. For example, if a 5[A] current flowed for 10 seconds, the total electric charge is $5 \text{ [A]} \times 10 \text{ [s]} = 50 \text{ [C]}$. The important point here is that **the unit of time must be seconds [s]**.
+
+#### 2. Electrolysis and Faraday's Laws
+
+**Electrolysis** is the process of causing a chemical reaction by passing electricity through a liquid (usually a solution). For example, splitting water into hydrogen and oxygen by passing electricity through it is a representative form of electrolysis. The **silver plating** mentioned in the problem is also a type of electrolysis. When an object is placed in a silver nitrate ($AgNO_3$) solution where silver (Ag) is dissolved and electricity is passed through, silver ions in the solution adhere to the surface of the object, coating it with a thin silver film.
+
+The 19th-century scientist **Michael Faraday** discovered an important law while studying this electrolysis phenomenon. This is called **Faraday's Law of Electrolysis**.
+
+**Faraday's First Law**: "The amount of substance produced (deposited) at an electrode during electrolysis is directly proportional to the total quantity of electricity that passed through the solution."
+
+Breaking this down simply:
+- The more electricity flows (the larger the total electric charge $Q$),
+- The more metal sticks (the amount of deposited substance $W$ increases).
+
+This relationship can be expressed mathematically as:
+$$ W \propto Q $$
+Here, the symbol '$\propto$' means 'is proportional to'.
+
+To turn this proportional relationship into an equation, a **proportionality constant** is needed. This constant is called the **electrochemical equivalent**, and the symbol $k$ is used.
+$$ W = k \times Q $$
+
+- **Electrochemical Equivalent ($k$)**: This is a unique value for a substance, indicating "how much substance (g) can be deposited with 1 Coulomb (C) of electric charge." The unit is **[g/C]**. For example, if the electrochemical equivalent of silver (Ag) is $1.118 \times 10^{-3}$ [g/C], it means that passing 1[C] of electric charge deposits $1.118 \times 10^{-3}$[g] of silver. Other substances like copper or gold have different values.
+
+#### 2.1. Final Calculation Formula
+
+Now, let's combine the two formulas learned above.
+1. Electric Charge Calculation: $Q = I \times t$
+2. Deposition Amount Calculation: $W = k \times Q$
+
+Substituting $Q$ from formula 1 into formula 2, we get the final formula for solving electrolysis problems.
+$$ W = k \cdot I \cdot t $$
+
+This formula is the core of electrolysis calculation problems.
+
+| Symbol | Meaning | Unit |
+|:---:|:---|:---|
+| $W$ | Amount of deposited substance (Mass) | Gram [g] |
+| $k$ | Electrochemical Equivalent | Gram per Coulomb [g/C] |
+| $I$ | Current | Ampere [A] |
+| $t$ | Time | Second [s] |
+
+**Most Important Caution**: When using this formula, the unit of time $t$ **must be 'seconds'**. This is because the unit of current, Ampere [A], means 'Coulombs flowing per 1 second [C/s]'. If the problem gives time in 'minutes' or 'hours', you must convert it to 'seconds'.
+
+#### 2.2. What happens at the electrodes (Cathode/Anode)?
+
+There are two electrodes in electrolysis: the **Anode (+)** which carries a positive charge, and the **Cathode (-)** which carries a negative charge.
+
+Metal ions dissolved in the solution (e.g., silver ions $Ag^+$) carry a positive (+) charge. Since opposite poles attract like magnets, these cations move toward the **Cathode (-)** which carries a negative charge.
+
+Ions arriving at the cathode gain electrons and return to their original metal atoms, sticking firmly to the surface of the cathode. This process is called **deposition**.
+
+**Core Memorization Rule:**
+- **Cathode (-)**: Metal ions stick to it, so it **becomes thicker**.
+- **Anode (+)**: If the anode is made of the same type of metal, it dissolves to replenish the ions, so it **becomes thinner**.
+
+If an exam question asks "What phenomenon occurs at the cathode?", the answer is almost always "It becomes thicker" or "Metal is deposited."
+
+#### 2.3. What is 'Chemical Equivalent'?
+
+Sometimes, problems do not give the electrochemical equivalent ($k$) directly but require calculating the **chemical equivalent**. These are related concepts, but distinct in exams.
+
+Chemical equivalent can be calculated with a simple formula.
+$$ \text{Chemical Equivalent} = \frac{\text{Atomic Weight}}{\text{Valence}} $$
+
+- **Atomic Weight:** The relative mass of an atom. (Always given in the problem.)
+- **Valence:** The number of electrons an atom gives or takes when forming a chemical bond. (Also given in the problem.)
+
+**Example:** If the atomic weight of Nickel (Ni) is 58.7 and the valence is 2, the chemical equivalent of Nickel is $58.7 \div 2 = 29.35$.
+
+### **Standard Problem Explanation**
+
+Now let's solve the standard problem step by step.
+
+**Problem**: Electrolysis of silver nitrate ($AgNO_3$) solution is performed for silver plating. When a current of 5[A] flows for 30 minutes, approximately what is the amount of silver (Ag) deposited at the cathode in [g]? (Note: The electrochemical equivalent of silver is $1.118 \times 10^{-3}$ [g/C].)
+
+---
+
+**Step 1: Identify the Goal**
+
+The problem asks for "the amount of silver (Ag) deposited." Thus, the goal is to find the mass $W$. The unit is grams [g].
+
+---
+
+**Step 2: Organize Given Information**
+
+Organize the values given in the problem into symbols.
+
+- Current ($I$): 5 [A]
+- Time ($t$): 30 minutes
+- Deposited Substance: Silver (Ag)
+- Electrochemical Equivalent of Silver ($k$): $1.118 \times 10^{-3}$ [g/C]
+
+---
+
+**Step 3: Select Formula**
+
+Since it is a problem calculating the amount of substance deposited through electrolysis, use Faraday's Law formula $W = kIt$.
+
+$$ W = k \cdot I \cdot t $$
+
+---
+
+**Step 4: Check and Convert Units (Most Important Step!)**
+
+Before substituting values into the formula, ensure all units are correct.
+- $k$: [g/C] - Correct.
+- $I$: [A] - Correct.
+- $t$: 30 minutes - **Incorrect unit.** In the formula, time $t$ must be in **seconds**.
+
+Therefore, convert 'minutes' to 'seconds'.
+$$ 1 \text{ minute} = 60 \text{ seconds} $$
+$$ t = 30 \text{ minutes} = 30 \times 60 \text{ seconds} = 1800 \text{ seconds} $$
+
+**Common Mistake**: If you skip this step and substitute $t=30$ as is, you get a completely different answer. Exams often give time in 'minutes' or 'hours' to induce this mistake, so always be careful.
+
+---
+
+**Step 5: Substitute Values into Formula**
+
+Now that all units are correctly converted, substitute the values into the formula.
+
+- $k = 1.118 \times 10^{-3}$
+- $I = 5$
+- $t = 1800$
+
+$$ W = (1.118 \times 10^{-3}) \times 5 \times 1800 $$
+
+---
+
+**Step 6: Calculate**
+
+Proceed with the calculation in order.
+
+1.  It is convenient to calculate the total electric charge $Q = I \times t$ first.
+    $$ Q = 5 \text{ [A]} \times 1800 \text{ [s]} = 9000 \text{ [C]} $$
+
+2.  Now calculate the deposition amount $W = k \times Q$.
+    $$ W = (1.118 \times 10^{-3} \text{ [g/C]}) \times 9000 \text{ [C]} $$
+    $10^{-3}$ is the same as $\frac{1}{1000}$, and $9000$ is the same as $9 \times 1000$.
+    $$ W = (1.118 \times \frac{1}{1000}) \times (9 \times 1000) $$
+    Here, $1000$ and $\frac{1}{1000}$ cancel each other out.
+    $$ W = 1.118 \times 9 $$
+    $$ W = 10.062 \text{ [g]} $$
+
+---
+
+**Step 7: Compare with Choices**
+
+The calculated result is 10.062 [g]. Check the choices.
+
+① 0.17
+② 1.68
+③ 10.06
+④ 33.54
+
+The value closest to the calculation result is ③ 10.06.
+
+**Final Answer**: ③
+
+### **Question Patterns & Examiner’s Win Conditions**
+
+Let's look at the traps intended by the examiner in this type of problem and strategies to counter them.
+
+| Pattern Type | Example Problem | Examiner's Intent (Trap) | Candidate's Counter-strategy |
+| :--- | :--- | :--- | :--- |
+| **1. Time Unit Trap** | Current of $10[A]$ flows through copper sulfate solution for **60 minutes**. Amount of copper deposited? | Giving time in 'minutes' or 'hours' induces the candidate to calculate without conversion. Calculating with $t=60$ yields a wrong answer. | **Must convert time to seconds.** Convert $60 \text{ min} = 60 \times 60 = 3600 \text{ s}$ and then substitute into $W=kIt$. |
+| **2. Formula Manipulation** | To deposit **1kg** of copper at the cathode, approximately how many **hours** should a **200A** current flow? | Instead of finding $W$, requires transforming the formula to find $t$ or $I$. Also gives mass in [kg] not [g], and asks for time in 'hours' not 'seconds', requiring multiple conversions. | 1. Transform formula to $t = \frac{W}{kI}$.<br>2. Match all units to base units. $1\text{kg} = 1000\text{g}$.<br>3. Convert calculated time (seconds) back to requested unit (hours). (Result $\div 3600$) |
+| **3. Law Name Question** | Which law states that the amount of substance deposited in electrolysis is proportional to the total electric charge? | Makes you confuse it with Faraday's 'Law of Induction' or other similarly named laws. | If keywords 'Electrolysis', 'Deposition', 'Chemical Equivalent' appear, immediately recall **Faraday's Law of Electrolysis**. |
+| **4. Unit Conversion Question** | How many [C] is 1 [Ah]? | Makes the unit [Ah] feel unfamiliar to cause confusion. | Think based on the formula $Q=It$. Calculate calmly: $1\text{Ah} = 1\text{A} \times 1\text{h} = 1\text{A} \times 3600\text{s} = 3600\text{C}$. |
+| **5. Electrode Phenomenon** | What phenomenon occurs at the cathode during electrolysis of copper sulfate solution? | Checks if you know the basic principle of electrolysis (which pole deposition occurs at). | Memorize the core rule: **"The cathode becomes thicker."** Positive (+) ions are attracted to the negative (-) pole, so metal deposition always happens at the cathode. |
+| **6. Chemical Equivalent Calc** | Nickel's valence is 2, atomic weight is 58.70. What is the chemical equivalent? | Asks if you know the definition and formula for chemical equivalent, rather than $W=kIt$ calculation. | Memorize **`Chemical Equivalent = Atomic Weight / Valence`** and calculate by direct substitution. |
+
+### **Study Method**
+
+Here is an efficient study method to completely conquer this type of problem.
+
+#### **1. Memorize This**
+
+- **Core Formula (Deposition Calculation)**:
+  $$ W = kIt $$
+  - $W$: Deposition amount [g]
+  - $k$: Electrochemical equivalent [g/C]
+  - $I$: Current [A]
+  - $t$: Time **[s]** (Remember it's seconds!)
+
+- **Core Formula (Chemical Equivalent Calculation)**:
+  $$ \text{Chemical Equivalent} = \frac{\text{Atomic Weight}}{\text{Valence}} $$
+
+- **Basic Formula (Electric Charge)**:
+  $$ Q = It $$
+
+- **Core Rule (Electrode Phenomenon)**:
+  - At the **Cathode (-)**, metal is deposited and it **becomes thicker**.
+
+- **Law Name**:
+  - **Faraday's Law of Electrolysis**
+
+- **Essential Unit Conversions**:
+  - 1 minute = 60 seconds
+  - 1 hour = 60 minutes = 3600 seconds
+  - 1 [Ah] = 3600 [C]
+
+#### **2. Understand This**
+
+- **Core Principle**: Understand the simple principle that the result of electrolysis (deposition amount) is directly proportional to 'how much electricity flowed (total electric charge)'. The formula is just a numerical expression of this principle.
+
+- **Importance of Units**: Understand why the time unit must be 'seconds'. Since the definition of current (A) itself implies 'electric charge flowing per 1 second (C/s)', you must multiply by 'seconds' to get the total charge. Understanding this principle prevents unit conversion errors.
+
+- **Principle of Electrodes**: Understand why deposition happens at the cathode. Just remember the principle of nature that (+) charged metal ions are attracted to the (-) charged cathode 'opposite poles attract'.
+
+#### **3. Actionable Plan**
+
+1.  **Memorize Formulas/Rules**: Write the 'Memorize This' list above 3 times in a notebook to perfectly memorize the meaning and units of each symbol. Especially write **(Seconds!)** large next to $t$, and link 'Cathode → Thicker' to memorize.
+2.  **Calculation Practice**:
+    - Solve the standard problem again by yourself.
+    - Find and solve problems that require formula manipulation (finding time $t$) and calculating chemical equivalent, as shown in the 'Question Patterns' above.
+3.  **Concept Check**: Read through concept questions asking about "Faraday's Law" or phenomena at the "Cathode", and train to link keywords with the correct answers.
+
+**Big Data Based Summary**: In the Electrical Craftsman written exam, problems related to Faraday's Law appear largely in three types: **1) Calculation of Deposition ($W$)**, **2) Cathode/Anode Phenomena**, **3) Calculation of Chemical Equivalent**. Among these, **deposition calculation problems are the most frequent**, and **giving time units in 'minutes' is the most common trap**. If you firmly master the memorization list presented above, you can solve all problems of this type.
+
+
+========================================
+
+
+# DC Circuit Analysis
+
+## Standard Problem
+In a circuit like the figure below, what is the current flowing through resistor $R_3$ in [A]?
+(Circuit Description: A DC power source of 60[V] is connected in series with resistor $R_1=4[\Omega]$. This series resistor is connected to a part where $R_2=6[\Omega]$ and $R_3=12[\Omega]$ are connected in parallel.)
+
+① 1.5
+② 2.5
+③ 5.0
+④ 7.5
+
+**Answer:** ②
+
+---
+
+## Coverage
+(example.txt: QIDs removed)
+
+## Verification Summary
+- Cycles: 8 (pass 5 / fail 3)
+- Final decision: pass
+- Consecutive-pass streak at finish: 2 (target: 2)
+
+---
+
+## Detailed Explanation
+### **Complete Conquest of DC Circuits: Detailed Explanation**
+
+This document explains how to solve all basic problems related to Direct Current (DC) circuits from the very basics. We build up all concepts step-by-step so that even a middle school student with no electrical knowledge can understand.
+
+---
+
+### 1. **Concept Explanation**
+
+I will explain all the basic concepts needed to solve electrical circuit problems by comparing them to the phenomenon of water flowing through pipes.
+
+#### **1.1. The 3 Basic Elements of Electricity: Voltage, Current, Resistance**
+
+1.  **Voltage ($V$)**
+    *   **Concept:** Voltage is the "pressure" or "force" that makes electricity flow. It is like the pressure of a pump pushing water in a pipe. Just as water flows stronger with higher pressure, electricity flows stronger with higher voltage.
+    *   **Unit:** Volt, symbol is $V$. (e.g., 60[V])
+
+2.  **Current ($I$)**
+    *   **Concept:** Current is the "flow" of electricity itself. It indicates how much electricity passes through a specific point during 1 second. It is like how much water flows through a pipe in 1 second (flow rate).
+    *   **Unit:** Ampere, symbol is $A$. (e.g., 2.5[A])
+
+3.  **Resistance ($R$)**
+    *   **Concept:** Resistance is the degree of "obstruction" to the flow of current. It is like water flow being hindered if a pipe gets narrower or has obstacles inside. The higher the resistance, the harder it is for current to flow.
+    *   **Unit:** Ohm, symbol is $\Omega$. (e.g., 4[$\Omega$])
+
+#### **1.2. Ohm's Law**
+
+This is the most important law explaining the relationship between these three elements.
+
+*   **Principle:** "The **current ($I$)** flowing in a circuit is proportional to the **voltage ($V$)** and inversely proportional to the **resistance ($R$)**."
+*   **Explanation:**
+    *   If voltage (pressure) increases, naturally current (flow) gets stronger. ($I$ is proportional to $V$)
+    *   If resistance (obstruction) increases, naturally current (flow) gets weaker. ($I$ is inversely proportional to $R$)
+*   **Formula:**
+    $$ V = I \times R $$
+    This formula can be rearranged to find current or resistance.
+    $$ I = \frac{V}{R} \quad \text{and} \quad R = \frac{V}{I} $$
+*   **Use Case:** Used to calculate the remaining value when knowing two of voltage, current, or resistance in a circuit. It is the foundation of all electrical circuit analysis.
+
+#### **1.3. Power and Energy**
+
+1.  **Power ($P$)**
+    *   **Concept:** Power is the amount of work electricity does in 1 second, i.e., the rate of energy consumption. Higher power means giving off brighter light or generating hotter heat.
+    *   **Unit:** Watt, symbol is $W$.
+    *   **Formula:** Can be expressed in three forms by combining with Ohm's Law; use the formula convenient for the given values.
+        $$ P = V \times I $$
+        $$ P = I^2 \times R \quad (\text{Substituting } V=IR) $$
+        $$ P = \frac{V^2}{R} \quad (\text{Substituting } I=V/R) $$
+
+2.  **Energy (Electric Work, $W$)**
+    *   **Concept:** Energy is the total amount of energy used over a specific time. Electricity bills are charged based on this energy.
+    *   **Unit:** Joule (J) or Watt-hour (Wh). $1[J] = 1[W] \times 1[s]$.
+    *   **Formula:**
+        $$ W = P \times t \quad (\text{Energy} = \text{Power} \times \text{Time}) $$
+    *   **Example:** If a 3[kW] bulb is used for 20 hours, the energy is $3[kW] \times 20[h] = 60[kWh]$.
+
+#### **1.4. Connection Methods of Resistors: Series and Parallel**
+
+1.  **Series Connection**
+    *   **Shape:** Connecting resistors in a single line like a train.
+    *   **Characteristics:**
+        *   **Current is Constant:** Since there is only one path, the exact same current flows through all resistors.
+        *   **Voltage divides:** The total voltage is divided across each resistor.
+        *   **Total Resistance (Equivalent Resistance):** Simply add up each resistance value. Total resistance increases as you connect more.
+    *   **Formula:**
+        $$ R_{total} = R_1 + R_2 + R_3 + \dots $$
+
+2.  **Parallel Connection**
+    *   **Shape:** Connecting resistors side-by-side by tying their starting points and ending points together.
+    *   **Characteristics:**
+        *   **Voltage is Constant:** The exact same voltage is applied to all resistors.
+        *   **Current divides:** Total current splits into each resistor.
+        *   **Total Resistance (Equivalent Resistance):** As more are connected in parallel, there are more paths for current, so total resistance decreases.
+    *   **Formula:**
+        $$ \frac{1}{R_{total}} = \frac{1}{R_1} + \frac{1}{R_2} + \frac{1}{R_3} + \dots $$
+        *   **Tip! (Most Important):** Formula used when only two resistors are in parallel.
+        $$ R_{total} = \frac{R_1 \times R_2}{R_1 + R_2} \quad (\text{Product over Sum}) $$
+
+#### **1.5. Conductance ($G$)**
+
+*   **Concept:** Conductance is the reciprocal of resistance ($G=1/R$), representing how "well" current flows. If resistance is the degree of obstruction, conductance is the degree of allowing passage.
+*   **Unit:** Siemens (S) or Mho (℧).
+*   **Formula:** All relationships are opposite to resistance.
+    *   $G = \frac{1}{R} = \frac{I}{V}$
+    *   **In Parallel:** $G_{total} = G_1 + G_2 + \dots$ (Calculated like series resistance)
+    *   **In Series:** $\frac{1}{G_{total}} = \frac{1}{G_1} + \frac{1}{G_2} + \dots$ (Calculated like parallel resistance)
+
+#### **1.6. Kirchhoff's Laws**
+
+Used to analyze complex circuits difficult to solve with just Ohm's Law.
+
+1.  **1st Law (Current Law, KCL):** "The sum of currents entering a point (junction) in a circuit equals the sum of currents leaving that point." Like water splitting at a pipe junction. Amount of water in equals amount of water out.
+    $$ \sum I_{in} = \sum I_{out} $$
+
+2.  **2nd Law (Voltage Law, KVL):** "Around any closed loop in a circuit, the sum of voltage rises (voltage supplied by battery) equals the sum of voltage drops (voltage consumed by resistors)."
+    $$ \sum E (\text{EMF}) = \sum IR (\text{Voltage Drop}) $$
+
+#### **1.7. Current Divider and Voltage Divider Rules**
+
+1.  **Voltage Divider Rule (In Series Circuits):**
+    *   **Principle:** In a series circuit, total voltage is divided **proportionally** to the size of each resistance. Higher resistance gets more voltage.
+    *   **Formula:** Voltage $V_1$ across $R_1$ is:
+        $$ V_1 = V_{total} \times \frac{R_1}{R_1 + R_2} $$
+
+2.  **Current Divider Rule (In Parallel Circuits):**
+    *   **Principle:** In a parallel circuit, total current divides **inversely proportional** to the size of each resistance. Smaller resistance gets more current.
+    *   **Formula:** Current $I_1$ through $R_1$ is:
+        $$ I_1 = I_{total} \times \frac{R_2}{R_1 + R_2} $$
+    *   **Caution:** Remember that the numerator contains the **opposite resistor** $R_2$ when finding $I_1$.
+
+#### **1.8. Battery and Internal Resistance**
+
+1.  **Battery:** A device that converts chemical energy into electrical energy to supply constant voltage (Electromotive Force, E).
+2.  **Internal Resistance ($r$):** No battery is perfect; there is slight resistance inside due to materials. This is always treated as being connected in **series** with the external circuit resistance.
+3.  **Connection of Batteries:**
+    *   **Series:** Voltage and internal resistance add up ($V_{total}=nE, r_{total}=nr$), capacity stays the same. Used when higher voltage is needed.
+    *   **Parallel:** Voltage stays same ($V_{total}=E$), total internal resistance decreases to $r_{total} = r/n$, capacity adds up. Used when longer usage is needed.
+4.  **Battery Capacity:** Uses Ampere-hour (Ah) unit. 1Ah means it can supply 1A current for 1 hour.
+    *   **Formula:** Capacity [Ah] = Current [A] × Time [h]
+
+#### **1.9. Maximum Power Transfer Theorem**
+
+*   **Concept:** Condition for when maximum power is transferred from a source (including internal resistance $r$) to a load (external resistance $R$).
+*   **Condition:** Maximum power is transferred when **load resistance $R$ equals source internal resistance $r$**.
+    $$ R = r $$
+*   **Max Power Formula:** When the above condition is met, the max power $P_{max}$ consumed at load $R$ is:
+    $$ P_{max} = \frac{E^2}{4r} $$
+    (Where E is the source EMF.)
+
+#### **1.10. Capacitor**
+
+1.  **Concept:** A component that temporarily stores electric charge. Similar to storing water in a tank.
+2.  **Capacitance ($C$):** The ability to store charge.
+    *   **Unit:** Farad (F). Microfarad ($\mu F = 10^{-6}F$) is commonly used.
+3.  **Basic Formula:** Relationship between stored charge $Q$, capacitance $C$, and applied voltage $V$.
+    *   $$ Q = C \times V $$
+    *   **Unit:** Unit of charge $Q$ is Coulomb (C). (Note: Variable symbol $C$ is 'Capacitance', Unit symbol C is 'Coulomb', so be careful not to confuse them.)
+4.  **Connection of Capacitors (Opposite to Resistors!)**
+    *   **Parallel Connection:** Simply add up. (Like resistor series calculation)
+        $$ C_{total} = C_1 + C_2 + \dots $$
+    *   **Series Connection:** Reciprocal of sum of reciprocals. (Like resistor parallel calculation)
+        $$ \frac{1}{C_{total}} = \frac{1}{C_1} + \frac{1}{C_2} + \dots $$
+5.  **Voltage Divider for Capacitors (In Series)**
+    *   **Principle:** Voltage across capacitors in series divides **inversely proportional** to capacitance. Smaller capacitance gets more voltage.
+    *   **Formula:** Voltage $V_1$ across $C_1$ is:
+        $$ V_1 = V_{total} \times \frac{C_2}{C_1 + C_2} $$
+    *   **Caution:** Like the current divider for resistors, remember the numerator has the **opposite capacitance** $C_2$. For example, with $C_1=2[\mu F]$ and $C_2=4[\mu F]$ in series and 12[V] applied, voltage across $C_1$ is $V_1 = 12[V] \times \frac{4[\mu F]}{2[\mu F] + 4[\mu F]} = 12 \times \frac{4}{6} = 8[V]$. You can see the smaller capacitance gets the larger voltage.
+
+#### **1.11. Resistance of a Conductor**
+
+*   **Concept:** Wire resistance depends on material, length, and thickness.
+*   **Formula:**
+    $$ R = \rho \frac{L}{A} $$
+    *   $R$: Resistance [$\Omega$]
+    *   $\rho$ (rho): Resistivity [$\Omega \cdot m$]. Unique value for material (Copper, Aluminum, etc.).
+    *   $L$: Length of conductor [m]. Resistance increases with length.
+    *   $A$: Cross-sectional area [m²]. Resistance decreases with thickness (area).
+*   **Important Type:** If length is doubled "while volume remains constant", the area becomes 1/2 to maintain volume. Thus resistance becomes $R' = \rho \frac{2L}{A/2} = 4 (\rho \frac{L}{A}) = 4R$, which is **4 times**. Resistance is proportional to the **square** of the length change.
+
+---
+
+### 2. **Standard Problem Explanation**
+
+Now, let's solve the given problem step-by-step based on the concepts learned.
+
+**Problem:** In a circuit like the figure below, what is the current flowing through resistor $R_3$ in [A]?
+(Circuit Description: A DC power source of 60[V] is connected in series with resistor $R_1=4[\Omega]$. This series resistor is connected to a part where $R_2=6[\Omega]$ and $R_3=12[\Omega]$ are connected in parallel.)
+
+**Solution Strategy:**
+This circuit is a **mixed circuit** where $R_1$ is in series with the parallel part ($R_2$, $R_3$). Solve by simplifying complex parts.
+1.  Combine parallel $R_2$ and $R_3$ into one equivalent resistor.
+2.  The circuit then becomes a simple series circuit with source, $R_1$, and the equivalent resistor found.
+3.  Calculate the total resistance of this simple series circuit.
+4.  Use Ohm's Law to find the current flowing through the whole circuit (Total Current).
+5.  Since this total current splits into $R_2$ and $R_3$, use the Current Divider Rule to finally calculate the current in $R_3$.
+
+---
+
+**Step-by-step Solution:**
+
+**Step 1: Circuit Analysis & Goal Setting**
+
+*   Source Voltage $V = 60$[V]
+*   Resistor $R_1 = 4$[$\Omega$]
+*   Resistor $R_2 = 6$[$\Omega$]
+*   Resistor $R_3 = 12$[$\Omega$]
+*   $R_2$ and $R_3$ are in parallel; this parallel part is in series with $R_1$.
+*   Goal is to find current in $R_3$, i.e., $I_3$.
+
+**Step 2: Calculate Equivalent Resistance of Parallel Part**
+
+First, combine parallel $R_2$ and $R_3$ into one. Let's call this $R_{23}$. Using "Product over Sum" formula for two parallel resistors:
+
+*   **Formula:** $R_{23} = \frac{R_2 \times R_3}{R_2 + R_3}$
+*   **Calculation:**
+    $$ R_{23} = \frac{6 \times 12}{6 + 12} = \frac{72}{18} = 4[\Omega] $$
+*   Now the complex parallel part can be thought of as a single $4[\Omega]$ resistor. The circuit is now a simple series circuit of $R_1$ and $R_{23}$.
+
+**Step 3: Calculate Total Equivalent Resistance of Circuit**
+
+From Step 2, the circuit is $R_1$ and $R_{23}$ in series. Total resistance $R_{total}$ is the sum.
+
+*   **Formula:** $R_{total} = R_1 + R_{23}$
+*   **Calculation:**
+    $$ R_{total} = 4[\Omega] + 4[\Omega] = 8[\Omega] $$
+*   Thus, the whole circuit is equivalent to one 8Ω resistor connected to a 60V source.
+
+**Step 4: Calculate Total Current**
+
+Now use Ohm's Law to calculate total current $I_{total}$ leaving the source (60V).
+
+*   **Formula:** $I_{total} = \frac{V}{R_{total}}$
+*   **Calculation:**
+    $$ I_{total} = \frac{60[V]}{8[\Omega]} = 7.5[A] $$
+*   This $7.5[A]$ current leaves the source, passes through $R_1$, and reaches the junction of $R_2$ and $R_3$.
+
+**Step 5: Calculate $I_3$ using Current Divider Rule**
+
+Total current $I_{total} = 7.5[A]$ splits into $R_2$ and $R_3$. We need current in $R_3$ ($I_3$), so apply the Current Divider Rule.
+
+*   **Formula:** $I_3 = I_{total} \times \frac{\text{Opposite Resistance}}{\text{Sum of Resistors}} = I_{total} \times \frac{R_2}{R_2 + R_3}$
+*   **Calculation:**
+    $$ I_3 = 7.5[A] \times \frac{6[\Omega]}{6[\Omega] + 12[\Omega]} $$
+    $$ I_3 = 7.5 \times \frac{6}{18} $$
+    $$ I_3 = 7.5 \times \frac{1}{3} $$
+    $$ I_3 = 2.5[A] $$
+
+**Conclusion:**
+The current flowing through resistor $R_3$ is **2.5[A]**. Therefore, the answer is **②**.
+
+---
+
+### 3. **Question Patterns & Examiner’s Win Conditions**
+
+Identifying traps and patterns helps reduce mistakes.
+
+**Main Problem Patterns:**
+
+1.  **Mixed Circuit Calculation (Most Frequent):** Calculating current/voltage in specific parts of series-parallel mixed circuits like the standard problem.
+2.  **Battery + Internal Resistance:** Batteries in series/parallel + load. Key is calculating total EMF and total resistance (internal+external).
+3.  **Max Power Transfer:** Given EMF($E$) and internal resistance($r$), asks for max power ($P_{max}$) at load. Apply condition $R=r$ and formula $P_{max} = E^2/4r$.
+4.  **Capacitor Circuits:** Series/Parallel capacitors. Asking for equivalent capacitance, total charge ($Q=CV$), or voltage/charge on specific capacitor.
+5.  **Power/Energy Calculation:** Given V, I, R, calc Power (P). Or change conditions (e.g., voltage change) and ask power change. Or given P and time, calc Energy (W).
+6.  **Conductor Resistance:** Wire length change. If "volume constant", remember resistance is proportional to length **squared**.
+
+**Examiner’s Traps (Win Conditions) & Counter-strategies:**
+
+1.  **Trap: Confusing Current Divider Formula**
+    *   *Situation:* Putting $R_3$ in numerator when finding $I_3$.
+    *   *Strategy:* Remember "Current flows more where resistance is small", and memorize that the numerator takes the **'Opposite'** resistor.
+2.  **Trap: Confusing Resistor vs Capacitor Formulas**
+    *   *Situation:* Adding capacitors in series like resistors, or taking reciprocals for parallel.
+    *   *Strategy:* Clearly memorize **"Capacitors are opposite to Resistors"**.
+3.  **Trap: Applying Total Voltage to Partial Circuit**
+    *   *Situation:* Calculating $I_3$ as $60V / 12\Omega = 5A$.
+    *   *Strategy:* Remember voltage divides in series circuits. The voltage across $R_3$ is much less than 60V.
+4.  **Trap: 'Square' Relationship in Conductor Resistance**
+    *   *Situation:* Thinking resistance doubles when length doubles, even with 'constant volume'.
+    *   *Strategy:* If 'constant volume' appears, immediately recall resistance is proportional to length 'squared' ($R \propto L^2$).
+
+---
+
+### 4. **Study Method**
+
+Efficient plan to master this type.
+
+**1. Memorize This:**
+
+*   **Ohm's Law:** $V=IR$, $I=V/R$, $R=V/I$
+*   **Power Formulas:** $P=VI$, $P=I^2R$, $P=V^2/R$
+*   **Energy Formula:** $W = P \times t$
+*   **Resistor Connections:**
+    *   Series: $R_{eq} = R_1 + R_2$
+    *   Parallel (2 resistors): $R_{eq} = \frac{R_1 \times R_2}{R_1 + R_2}$ (Product over Sum)
+*   **Current Divider (Parallel):** $I_1 = I_{total} \times \frac{R_2}{R_1 + R_2}$ (Opposite resistor in numerator!)
+*   **Batteries:**
+    *   Capacity: $Ah = A \times h$
+    *   Series: Total $V=nE$, Total $r_{int}=nr$, Capacity same
+    *   Parallel: Total $V=E$, Total $r_{int}=r/n$, Capacity adds up
+*   **Max Power Transfer:** Condition $R=r$, Formula $P_{max} = \frac{E^2}{4r}$
+*   **Capacitor:**
+    *   Basic: $Q = CV$
+    *   **Parallel:** $C_{eq} = C_1 + C_2$ (Like resistor series)
+    *   **Series (2 caps):** $C_{eq} = \frac{C_1 \times C_2}{C_1 + C_2}$ (Like resistor parallel)
+    *   **Series Voltage Divider:** $V_1 = V_{total} \times \frac{C_2}{C_1 + C_2}$ (Opposite capacitance in numerator!)
+*   **Conductor Resistance:** $R = \rho \frac{L}{A}$
+
+**2. Understand This:**
+
+*   **Difference between Series/Parallel:** Understand via water analogy why current is same in series, voltage same in parallel.
+*   **Resistor vs Capacitor:** Understand conceptually why formulas are opposite to aid memorization.
+*   **Mixed Circuit Strategy:** Internalize the "Simplify complex parts first" approach.
+*   **Inverse Relationships:** Understand intuitively: Current inverse to Resistance, proportional to Conductance.
+
+**3. Big Data Based Summary:**
+
+Analyzing past exams for DC circuits, these are most important:
+
+*   **Rank 1:** **Mixed Resistor Circuit Calculation.** Like the standard problem, appears almost every exam. Mastering this guarantees one point.
+*   **Essential Combo:** **Battery+Internal R+External R** current calculation is frequent. Key is Total EMF / Total Resistance.
+*   **Frequent Formulas:** **Power ($P=V^2/R, P=I^2R$)**, **Max Power ($P_{max}=E^2/4r$)**, and **Capacitor Charge ($Q=CV$)** often appear as standalone questions. Memorize them.
+*   **Trap Questions:** **Conductor Resistance ($R \propto L^2$ if volume constant)** and **Resistor/Capacitor Formula Distinction** are representative traps. Train to recall formulas instantly upon seeing keywords.
+
+
+========================================
+
+
+# Equivalent Circuit Calculation (R, L, C)
+
+## Standard Problem
+What is the equivalent resistance between terminals a-b in the circuit like the figure?
+
+Description of the circuit included in the problem:
+Starting from terminal a, a $4\Omega$ resistor ($R_1$) is connected in series. After this resistor, the circuit splits into two parallel branches. The top branch has one $12\Omega$ resistor ($R_2$). The bottom branch has a $2\Omega$ resistor ($R_3$) and a $4\Omega$ resistor ($R_4$) connected in series. The two parallel branches merge again and lead to terminal b.
+
+Choices: ① 4
+② 8
+③ 14
+④ 22
+
+**Answer:** ②
+
+---
+
+## Coverage
+(example.txt: QIDs removed)
+
+## Verification Summary
+- Cycles: 4 (pass 2 / fail 2)
+- Final decision: pass
+- Consecutive-pass streak at finish: 2 (target: 2)
+
+---
+
+## Detailed Explanation
+### 1. Concept Explanation
+
+Let's learn basic concepts one by one to solve electric circuit problems. These concepts are like bricks for building a house; understanding each one firmly is necessary to understand the whole circuit.
+
+#### 1.1. Basic Elements of Electric Circuits
+
+It is easy to understand if you compare an electric circuit to a water pipe system.
+
+*   **Current ($I$)**: The flow of electricity. Like 'amount of flowing water' in a pipe. Unit is **Ampere (A)**.
+*   **Voltage ($V$)**: The force (pressure) that makes current flow. Like 'water pressure' in a pipe. Higher voltage flows more current, just as higher pressure flows water stronger. Unit is **Volt (V)**.
+*   **Resistance ($R$)**: An element that **obstructs** the flow of current. Like a 'narrowing' or 'filter' in a pipe. Higher resistance obstructs flow more. Unit is **Ohm (Ω)**.
+*   **Inductor ($L$) or Coil**: An element that opposes 'sudden changes' in current. Think of it as a 'heavy waterwheel' in a pipe. If water tries to flow suddenly, it starts turning slowly due to inertia, and if water tries to stop suddenly, it keeps turning. Unit is **Henry (H)**. **Crucially, the calculation method for connecting multiple inductors is exactly the same as for resistors.**
+*   **Capacitor ($C$) or Condenser**: An element that 'stores' electricity. Like a 'rubber balloon' or 'small tank' in a pipe. It stores electricity when voltage is applied and releases it when needed. Unit is **Farad (F)**.
+
+The most important law representing the relationship between Resistance, Voltage, and Current is **Ohm's Law**.
+$$V = I \times R$$
+This means Voltage ($V$) equals Current ($I$) times Resistance ($R$). So for same voltage, higher resistance means lower current, and lower resistance means higher current.
+
+#### 1.2. Basics of Capacitor: Charge and Capacitance
+
+We said a capacitor stores electricity. We need a concept to represent how much electricity it stores.
+
+*   **Charge ($Q$)**: The quantity of electricity itself. Like 'amount of stored water'. Unit is **Coulomb (C)**.
+*   **Capacitance ($C$)**: The ability or size of a capacitor to store charge. Like 'size' or 'capacity' of a water tank. Unit is **Farad (F)**.
+
+There is an important relationship between Capacitance ($C$), Voltage ($V$), and Charge ($Q$).
+$$Q = C \times V$$
+This means:
+"The amount of charge ($Q$) stored in a capacitor is proportional to the capacity ($C$) and the applied voltage ($V$)."
+Just as the amount of water ($Q$) stored in a tank increases with a larger tank ($C$) and higher water pressure ($V$). This formula is critical in capacitor problems.
+
+#### 1.3. Connection Methods: Series and Parallel
+
+There are two main ways to connect multiple elements (resistors, capacitors, etc.): Series and Parallel.
+
+*   **Series Connection**
+    *   **Concept:** Connecting elements in a single line, like a train. There is **only one path** for current to flow.
+    *   **Analogy:** Connecting narrow pipe pieces one after another. Water must pass through all narrow paths in order.
+    *   **Characteristics:**
+        *   Current flows equally through all elements. (Only one path).
+        *   Total resistance (Equivalent resistance) is simply the **sum of each resistance**. Since narrow paths are added, it becomes harder for water to flow overall.
+
+*   **Parallel Connection**
+    *   **Concept:** Connecting starting points together and ending points together. Current splits into multiple paths and merges again. There are **multiple paths**.
+    *   **Analogy:** One large pipe splitting into smaller pipes and merging back. Water flows through multiple paths.
+    *   **Characteristics:**
+        *   Voltage is applied equally to all elements. (Start and end points are same).
+        *   Total resistance (Equivalent resistance) becomes **smaller** than individual resistances. Since paths increase, current flows more easily overall.
+
+#### 1.4. Equivalent Resistance and Inductance Calculation
+
+Formulas for Total (Equivalent) value ($R_{eq}$, $L_{eq}$) in Series and Parallel. Resistors and Inductors share the same calculation method.
+
+*   **Series Connection**:
+    *   **Principle:** Obstructions increase, so total obstruction is the sum.
+    *   **Formula**:
+        $$R_{eq} = R_1 + R_2 + R_3 + \dots$$
+        $$L_{eq} = L_1 + L_2 + L_3 + \dots$$
+
+*   **Parallel Connection**:
+    *   **Principle:** Multiple paths make flow easier, so resistance decreases.
+    *   **General Formula (3+ items)**:
+        $$\frac{1}{R_{eq}} = \frac{1}{R_1} + \frac{1}{R_2} + \frac{1}{R_3} + \dots$$
+        (Take the reciprocal of the result to get $R_{eq}$.)
+    *   **Special Formula (2 items)**: Convenient to memorize as "Product over Sum".
+        $$R_{eq} = \frac{R_1 \times R_2}{R_1 + R_2}$$
+
+#### 1.5. Equivalent Capacitance Calculation
+
+Calculation for capacitors is **opposite to resistors**. This is the key point.
+
+*   **Series Connection (Like Resistor Parallel)**:
+    *   **Principle:** Connecting capacitors in series effectively widens the gap between plates, **decreasing** storage ability.
+    *   **General Formula (3+ items)**:
+        $$\frac{1}{C_{eq}} = \frac{1}{C_1} + \frac{1}{C_2} + \frac{1}{C_3} + \dots$$
+    *   **Special Formula (2 items)**:
+        $$C_{eq} = \frac{C_1 \times C_2}{C_1 + C_2}$$
+
+*   **Parallel Connection (Like Resistor Series)**:
+    *   **Principle:** Connecting in parallel effectively combines plate areas, widening the area, **increasing** storage ability.
+    *   **Formula**:
+        $$C_{eq} = C_1 + C_2 + C_3 + \dots$$
+
+#### 1.6. Strategy for Mixed Series-Parallel Circuits
+
+For mixed circuits, you can't calculate everything at once. Divide the circuit into simple blocks and calculate step-by-step.
+
+**Strategy: Inside out, Complex to Simple!**
+
+1.  Find the innermost pure series or parallel part.
+2.  Calculate the equivalent value of that part.
+3.  Imagine replacing that part with a **single element** having that value and redraw the circuit mentally.
+4.  Find the next pure series/parallel part in the simplified circuit and repeat 1-3.
+5.  Continue until the whole circuit remains as one element.
+
+---
+
+### 2. Standard Problem Explanation
+
+Let's solve the standard problem step-by-step using these concepts.
+
+**Problem**: What is the equivalent resistance between terminals a-b in the circuit like the figure?
+
+**Circuit Analysis**:
+*   At terminal a, there is $R_1 = 4\Omega$.
+*   After $R_1$, the path splits into two. This implies **Parallel Connection**.
+*   Top path has one resistor $R_2 = 12\Omega$.
+*   Bottom path has $R_3 = 2\Omega$ and $R_4 = 4\Omega$ in a line. This implies **Series Connection**.
+*   The two paths merge and lead to terminal b.
+
+This circuit is a structure where $R_1$ is in **Series** with a (Parallel part). Inside that parallel part, there is a ($R_3$ and $R_4$ Series).
+
+**Step-by-Step Solution**:
+
+**Step 1: Calculate the innermost simple part (Series resistors in bottom branch)**
+
+According to the strategy, the first part to calculate is the series connection of $R_3$ and $R_4$ in the bottom branch.
+
+*   **Concept**: Series Equivalent Resistance
+*   **Formula**: $R_{eq} = R_1 + R_2$
+*   **Calculation**:
+    Let's call this $R_{34}$.
+    $$R_{34} = R_3 + R_4 = 2\Omega + 4\Omega = 6\Omega$$
+
+*   **Check**: Now the circuit is simpler:
+    *   $R_1 = 4\Omega$ from a,
+    *   followed by a parallel connection of Top ($R_2 = 12\Omega$) and Bottom ($R_{34} = 6\Omega$).
+
+**Step 2: Calculate the Parallel part**
+
+Now calculate the parallel connection of the simplified circuit. Top branch $R_2 = 12\Omega$ and Bottom branch equivalent $R_{34} = 6\Omega$ are in parallel.
+
+*   **Concept**: Parallel Equivalent Resistance (2 resistors)
+*   **Formula**: $R_{eq} = \frac{R_1 \times R_2}{R_1 + R_2}$ ("Product over Sum")
+*   **Calculation**:
+    Let's call this parallel total $R_p$.
+    $$R_p = \frac{R_2 \times R_{34}}{R_2 + R_{34}} = \frac{12\Omega \times 6\Omega}{12\Omega + 6\Omega} = \frac{72}{18}\Omega = 4\Omega$$
+
+*   **Common Mistake**: Don't confuse numerator and denominator. Always "Sum" is bottom, "Product" is top.
+
+*   **Check**: Now the circuit is much simpler:
+    *   $R_1 = 4\Omega$ from a,
+    *   followed by the combined parallel part $R_p = 4\Omega$ connected in **Series** to b.
+
+**Step 3: Calculate Final Equivalent Resistance**
+
+Finally, find total resistance $R_{ab}$ between a-b. This is $R_1$ and $R_p$ in series.
+
+*   **Concept**: Series Equivalent Resistance
+*   **Formula**: $R_{eq} = R_1 + R_2$
+*   **Calculation**:
+    $$R_{ab} = R_1 + R_p = 4\Omega + 4\Omega = 8\Omega$$
+
+**Final Conclusion**:
+The total equivalent resistance is $8\Omega$. Thus, the answer is **② 8**.
+
+---
+
+### 3. Question Patterns & Examiner’s Win Conditions
+
+Examiners set traps to check if you understand concepts or just memorized formulas loosely.
+
+**Pattern 1: Confusing Series/Parallel Formulas**
+*   **Example**: "What is equivalent resistance of $R_1, R_2$ connected in parallel?"
+*   **Intent**: Checking if you confuse Series (Sum) and Parallel (Product/Sum).
+*   **Strategy**: Remember image: "Series gets longer -> bigger resistance (+), Parallel gets wider -> smaller resistance (complex fraction)".
+
+**Pattern 2: Confusing Resistor (R) vs Capacitor (C)**
+*   **Example**: "If condensers are connected in series, equivalent capacitance (increases/decreases)."
+*   **Intent**: Trap using the fact C is opposite to R.
+*   **Strategy**: Memorize **"Capacitor is Opposite to Resistor!"**
+    *   Resistor Series = Sum  ↔  Capacitor **Parallel** = Sum
+    *   Resistor Parallel = Product/Sum  ↔  Capacitor **Series** = Product/Sum
+
+**Pattern 3: Max/Min Value Question**
+*   **Example**: "With 5 identical resistors, ratio of max equivalent resistance to min?"
+*   **Intent**: Understanding conceptual meaning of connections.
+*   **Strategy**: Remember principle.
+    *   **Max R/L**: **All Series** ($n \times R$)
+    *   **Min R/L**: **All Parallel** ($R / n$)
+    *   (Capacitor is opposite. Max C is Parallel, Min C is Series.)
+
+**Pattern 4: Calculation Order in Mixed Circuits (Standard Problem)**
+*   **Example**: Mixed series/parallel circuit.
+*   **Intent**: Evaluating analysis and order of operations.
+*   **Strategy**: **"Inside out, Chunk by Chunk!"** Find independent series/parallel chunks, calc, replace with single element.
+
+**Pattern 5: Conductance (G), Admittance (Y)**
+*   **Example**: "Equivalent Admittance of $Y_1, Y_2$ in parallel?"
+*   **Intent**: Checking knowledge of reciprocals ($G=1/R, Y=1/Z$).
+*   **Strategy**: Reciprocal relation means calculation rules are **Opposite**. So, **Same rules as Capacitor.**
+    *   G/Y Parallel = Sum (Like Resistor Series)
+    *   G/Y Series = Product/Sum (Like Resistor Parallel)
+
+**Pattern 6: Diamond Shape (Wheatstone Bridge)**
+*   **Example**: Diamond shape 5 resistors. "Resistance X when galvanometer reads 0?"
+*   **Intent**: Checking knowledge of 'Equilibrium Condition'.
+*   **Strategy**:
+    1.  **Check Condition**: If "Equilibrium" or "Current is 0", use formula: **Product of opposite resistors is equal.** ($R_1 R_x = R_2 R_3$)
+    2.  **Shortcut**:
+        *   If equilibrium, **ignore the middle resistor**. Treat as open circuit.
+        *   If finding X, use the product formula.
+
+**Pattern 7: Total Charge Calculation**
+*   **Example**: "$30[\mu F]$ and $40[\mu F]$ condensers in parallel with 100[V]. Total charge?"
+*   **Intent**: Checking 2-step application: 1) $C_{eq}$ calculation, 2) $Q=CV$ formula.
+*   **Strategy**:
+    1.  Calc **Total Capacitance $C_{eq}$**. (Parallel: $30+40=70\mu F$)
+    2.  Use **$Q_{total} = C_{eq} \times V$**. ($70\mu F \times 100V$)
+
+---
+
+### 4. Study Method
+
+Efficient plan to conquer this type.
+
+**1. Memorize This!**
+
+The table below is the core. Write it down multiple times.
+
+| Connection | Resistor (R) / Inductor (L) | Capacitor (C) / Conductance (G) / Admittance (Y) |
+| :--- | :--- | :--- |
+| **Series** | **Sum (Add)**<br> $R_{eq} = R_1 + R_2 + \dots$ | **Product/Sum (Fraction)**<br> $\frac{1}{C_{eq}} = \frac{1}{C_1} + \frac{1}{C_2} + \dots$ <br> (2 items: $\frac{C_1 C_2}{C_1 + C_2}$) |
+| **Parallel** | **Product/Sum (Fraction)**<br> $\frac{1}{R_{eq}} = \frac{1}{R_1} + \frac{1}{R_2} + \dots$ <br> (2 items: $\frac{R_1 R_2}{R_1 + R_2}$) | **Sum (Add)**<br> $C_{eq} = C_1 + C_2 + \dots$ |
+
+*   **Core Sentence**: "R/L Series is Sum, Parallel is Product/Sum. C/G/Y is Opposite!"
+*   **Capacitor Formula**: $Q = C \times V$
+*   **Max/Min**:
+    *   R Max → All Series ($n \times R$)
+    *   R Min → All Parallel ($R / n$)
+*   **Wheatstone Bridge**: Product of facing resistors is equal. ($R_1 R_x = R_2 R_3$)
+
+**2. Understand This!**
+
+*   **Series vs Parallel**: Understand via pipe analogy why series increases R and parallel decreases R.
+*   **Capacitor Rule**: Understand the principle (Series=wider gap=less C, Parallel=wider area=more C) to avoid confusion.
+*   **Mixed Circuit Order**: Internalize "Simplification Strategy" (innermost chunk first).
+
+**3. Action Plan**
+
+1.  **Step 1 (Concepts)**: Memorize table and sentences perfectly.
+2.  **Step 2 (Basic)**: Solve 3-5 pure series/parallel problems for R and C. Practice 'Opposite Rule'.
+3.  **Step 3 (Mixed)**: Solve mixed circuits like the standard problem. **Redraw the simplified circuit at each step.** This reduces mistakes drastically.
+4.  **Step 4 (Applied)**: Solve Max/Min, Conductance, Bridge, Charge calc problems.
+5.  **Wrong Answers**: Analyze why. 'Calc error', 'Formula mixup (R vs C)', 'Order error', 'Forgot Q=CV'.
+
+By practicing this, equivalent circuit calculation will become one of your strongest topics.
+
+
+========================================
+
+
+# Joule's Law and Heat Calculation
+
+## Standard Problem
+We intend to heat 50L of water at 15°C to 55°C in 1 hour using an electric heater with 85% efficiency. What is the approximate power [kW] of the heater required? (Note: The specific heat of water is 1 kcal/kg·°C.)
+
+Choices: ① 2.3
+② 2.7
+③ 3.2
+④ 3.8
+
+**Answer:** ②
+
+---
+
+## Coverage
+(example.txt: QIDs removed)
+
+## Verification Summary
+- Cycles: 3 (pass 2 / fail 1)
+- Final decision: pass
+- Consecutive-pass streak at finish: 2 (target: 2)
+
+---
+
+## Detailed Explanation
+### **Joule's Law and Heat Calculation**
+
+### 1. Concept Explanation
+
+To solve this type of problem, you must understand the relationship between electrical energy and thermal energy. I will explain from the most basic concepts step-by-step.
+
+#### 1.1. What is Energy?
+
+Energy is the ability to do work. All phenomena in the world are processes of energy changing from one form to another. For example, a lamp converts electrical energy into light and heat energy, and a car converts chemical energy (fuel) into kinetic energy. The basic unit of energy is the **Joule (J)**.
+
+#### 1.2. Heat and Temperature
+
+- **Temperature**: A measure of how hot or cold an object is. Units are Celsius ($^\circ C$) or Kelvin ($K$).
+- **Heat**: Energy transferred between two objects with different temperatures. Energy always moves from high temp to low temp. Since heat is energy, Joule ($J$) can be used, but traditionally **calorie (cal)** is used often. Symbol is $cal$.
+    - $1 \text{ cal}$ is the heat required to raise $1 \text{ g}$ of water by $1^\circ C$.
+    - $1 \text{ kcal}$ (kilocalorie) is $1000 \text{ cal}$, the heat to raise $1 \text{ kg}$ of water by $1^\circ C$.
+
+#### 1.3. Calculation of Heat to Raise Temperature
+
+To raise an object's temperature, heat must be added. The required heat depends on three factors:
+
+1.  **Mass ($m$)**: More mass needs more heat. (e.g., Heating a bathtub needs more than a cup.)
+2.  **Temperature Change ($\Delta T$)**: Higher rise needs more heat. (e.g., Heating $20^\circ C \to 100^\circ C$ is harder than $20^\circ C \to 30^\circ C$.)
+3.  **Type of Substance (Specific Heat, $c$)**: Different substances need different heat amounts. This unique property is **Specific Heat**.
+    - **Specific Heat ($c$)**: Heat required to raise $1 \text{ kg}$ of substance by $1^\circ C$. Water's specific heat is $1 \text{ kcal/kg} \cdot ^\circ C$, which is very large. So water changes temperature slowly.
+
+Formula combining these:
+
+$$ Q = c \cdot m \cdot \Delta T $$
+
+| Symbol | Meaning | Unit | Description |
+| :--: | :--- | :--- | :--- |
+| $Q$ | Heat | kcal | Total thermal energy gained/lost |
+| $c$ | Specific Heat | kcal/kg·°C | Heat to raise $1 \text{ kg}$ by $1^\circ C$ |
+| $m$ | Mass | kg | Amount of substance |
+| $\Delta T$ | Temp Change | °C | Final Temp - Initial Temp ($T_2 - T_1$) |
+
+#### 1.4. Electrical Energy and Power
+
+- **Power ($P$)**: Amount of electrical energy used per second. Unit is **Watt (W)**. $1 \text{ W}$ means doing $1 \text{ J}$ of work per second ($1 \text{ W} = 1 \text{ J/s}$).
+- **Energy (Electric Work, $W$)**: Total electrical energy used over time. Calculated by multiplying Power by Time.
+
+$$ W = P \cdot t $$
+
+| Symbol | Meaning | Unit | Description |
+| :--: | :--- | :--- | :--- |
+| $W$ | Energy | J (Joule) | Total used energy |
+| $P$ | Power | W (Watt) | Energy per unit time |
+| $t$ | Time | s (Second) | Usage time |
+
+**Important**: Units must match. If Power ($P$) is Watts ($W$) and Time ($t$) is Seconds ($s$), Energy ($W$) is Joules ($J$).
+
+#### 1.5. Joule's Law: Electricity meets Heat
+
+Scientist James Joule discovered that electrical energy can convert to heat energy with a constant relationship. This is **Joule's Law**.
+
+When current flows, electrons collide with atoms, generating heat called **Joule Heat**.
+Conversion relationship:
+
+$$ 1 \text{ J} \approx 0.24 \text{ cal} \quad \text{or} \quad 1 \text{ cal} \approx 4.2 \text{ J} $$
+
+Using this constant, we calculate heat ($H$) from electrical energy ($W$).
+
+$$ H (\text{cal}) = 0.24 \times W (\text{J}) $$
+
+Substituting $W = P \cdot t$, we get the formula for heat from power and time.
+
+$$ H = 0.24 \cdot P \cdot t $$
+
+| Symbol | Meaning | Unit | **Caution** |
+| :--: | :--- | :--- | :--- |
+| $H$ | Heat | cal | **calorie** unit |
+| $P$ | Power | W | **Watt** unit |
+| $t$ | Time | s | **Second** unit |
+
+#### 1.6. Stored Energy: Capacitor
+
+Sometimes energy is stored and released at once (like a **Capacitor**), rather than continuous heating.
+- **Capacitor**: Stores charge like a small battery.
+
+Energy ($W$) stored in a capacitor:
+
+$$ W = \frac{1}{2}CV^2 $$
+
+| Symbol | Meaning | Unit | Description |
+| :--: | :--- | :--- | :--- |
+| $W$ | Stored Energy | J | Total energy stored |
+| $C$ | Capacitance | F | Ability to store charge |
+| $V$ | Voltage | V | Applied voltage |
+
+When discharged through a resistor, all this energy ($W$) turns to heat.
+Heat ($H$) generated upon discharge:
+
+$$ H (\text{cal}) = 0.24 \times W (\text{J}) = 0.24 \times \left(\frac{1}{2}CV^2\right) $$
+
+#### 1.7. Practical Formula: $1 \text{ kWh} = 860 \text{ kcal}$
+
+Exams often give Power in $\text{kW}$ and Time in $\text{h}$. Converting to W and s is tedious.
+- $1 \text{ kW} = 1000 \text{ W}$
+- $1 \text{ h} = 3600 \text{ s}$
+
+Energy $1 \text{ kWh}$ in heat:
+1.  To Joules: $1000 \text{ W} \times 3600 \text{ s} = 3,600,000 \text{ J}$
+2.  To kcal: $3,600,000 \text{ J} \times 0.24 \frac{\text{cal}}{\text{J}} = 864,000 \text{ cal} = 864 \text{ kcal}$
+
+Using accurate constant ($4.186 J/cal$), it's approx $860 \text{ kcal}$. This is the standard in electricity.
+
+$$ 1 \text{ kWh} = 860 \text{ kcal} $$
+
+This yields a very useful formula:
+
+$$ H = 860 \cdot P \cdot t $$
+
+| Symbol | Meaning | Unit | **Caution** |
+| :--: | :--- | :--- | :--- |
+| $H$ | Heat | kcal | **kilocalorie** unit |
+| $P$ | Power | kW | **kilowatt** unit |
+| $t$ | Time | h | **hour** unit |
+
+This formula makes calculation very fast when units are $\text{kcal, kW, h}$.
+
+#### 1.8. Efficiency ($\eta$)
+
+Devices don't convert 100% energy. **Efficiency** is the ratio of useful output to total input.
+
+$$ \text{Efficiency}(\eta) = \frac{\text{Useful Output Energy}}{\text{Total Input Energy}} \times 100 (\%) $$
+
+For heaters:
+$$ \text{Heat to Water (Useful)} = \text{Electric Energy consumed} \times \text{Efficiency}(\eta) $$
+
+So, required electric energy is:
+$$ \text{Electric Energy consumed} = \frac{\text{Heat to Water}}{\text{Efficiency}(\eta)} $$
+
+If efficiency is 85%, use $\eta=0.85$.
+
+### 2. Standard Problem Explanation
+
+**Problem**: Heat 50L water from 15°C to 55°C in 1 hour using heater with 85% efficiency. Find Power [kW]. (Specific heat $1 \text{ kcal/kg} \cdot ^\circ C$)
+
+#### **Step 1: Analyze & Organize**
+
+- **Goal**: Power ($P$) in $\text{kW}$.
+- **Given**:
+    - Efficiency $\eta = 0.85$
+    - $T_1 = 15^\circ C$, $T_2 = 55^\circ C$
+    - Volume $V = 50 \text{ L}$
+    - Time $t = 1 \text{ h}$
+    - Specific heat $c = 1 \text{ kcal/kg} \cdot ^\circ C$
+
+#### **Step 2: Calc Required Heat ($Q$)**
+
+Formula: $Q = c \cdot m \cdot \Delta T$
+
+1.  **Mass ($m$)**: Water density is $1 \text{ kg/L}$. So $50 \text{ L} \to 50 \text{ kg}$.
+2.  **$\Delta T$**: $55 - 15 = 40^\circ C$.
+3.  **Calc $Q$**:
+    $Q = 1 \times 50 \times 40 = 2000 \text{ kcal}$.
+
+This $2000 \text{ kcal}$ is the **useful heat** water needs.
+
+#### **Step 3: Calc Total Electric Energy ($W_{elec}$) considering Efficiency**
+
+Formula: $\text{Input} = \frac{\text{Output}}{\eta}$
+
+$W_{elec} = \frac{2000 \text{ kcal}}{0.85} \approx 2352.94 \text{ kcal}$.
+
+The heater must consume this much energy.
+
+#### **Step 4: Calc Power ($P$)**
+
+Since we have energy in $\text{kcal}$ and time in $\text{h}$, and need $\text{kW}$, use $H = 860 \cdot P \cdot t$.
+Here $H$ is the total electric energy $W_{elec}$.
+
+$$ P = \frac{W_{elec}}{860 \cdot t} $$
+
+- $W_{elec} \approx 2352.94$
+- $t = 1$
+
+$P = \frac{2352.94}{860 \times 1} \approx 2.736 \text{ kW}$
+
+#### **Step 5: Select Answer**
+
+Closest to 2.736 is ② 2.7.
+
+**Final Answer**: ②
+
+---
+**[Alternative]** Using $H=0.24Pt$
+1. $Q = 2000 \text{ kcal} = 2,000,000 \text{ cal}$.
+2. Input = $2,000,000 / 0.85 \approx 2,352,941 \text{ cal}$.
+3. $t = 1 \text{ h} = 3600 \text{ s}$.
+4. $P = \frac{2,352,941}{0.24 \times 3600} \approx 2723 \text{ W} = 2.72 \text{ kW}$.
+Result is same.
+
+### 3. Question Patterns & Examiner’s Win Conditions
+
+| Pattern Type | Example | Trap / Intent | Strategy |
+| :--- | :--- | :--- | :--- |
+| **1. Power Calculation (Standard)** | "Efficiency 80%, 20°C water 100L, 2h, 40°C. Need kW?" | - **Unit Confusion**: Giving time in h/min but student uses 0.24 formula without conversion. Or L vs kg.<br>- **Efficiency**: Multiplying instead of dividing. | 1. **Energy Flow**: Input $\to$ Loss $\to$ Output.<br>2. **Select Formula**: Use `860Pt` for `kW, h, kcal`. Use `0.24Pt` for `W, s, cal`.<br>3. **Check Units**. |
+| **2. Heat/Temp Calculation (Reverse)** | "3kW heater for 1h. Heat in kcal?" | - **Formula**: Not knowing $1 \text{ kWh} = 860 \text{ kcal}$.<br>- **Unit**: Asking for cal but giving kW/h. | - Memorize **`1 kWh = 860 kcal`**. Calc: `3 * 860`. |
+| **3. Direct Joule's Law** | "100Ω, 2A, 1 min. Heat in cal?" | - **Square**: Forgetting $I^2$.<br>- **Time**: Using min instead of s.<br>- **J vs cal**: Answer in J instead of cal. | - Formula: $H = 0.24 \cdot I^2 \cdot R \cdot t$.<br>- Convert time to **Seconds**.<br>- Check requested unit (J or cal). |
+| **4. Concept** | "Law related to heat generation by current?" | - Confusing laws (Ohm, Faraday).<br>- "Prop to Current" vs "Prop to Current Squared". | - Keywords: **Heat ↔ Joule's Law**.<br>- $H \propto I^2$ (Squared!). |
+| **5. Capacitor Discharge** | "100μF, 1000V capacitor discharged. Heat in cal?" | - **Source**: Must know source is stored energy.<br>- **Formula**: $W = \frac{1}{2}CV^2$.<br>- **Prefix**: $\mu$ ($10^{-6}$). | 1. Calculate Energy $W = \frac{1}{2}CV^2$ [J].<br>2. Convert to heat: $H = 0.24 \times W$ [cal]. |
+
+### 4. Study Method
+
+#### **1. Memorize This!**
+
+- **Heat Formula**:
+  $$ Q = c \cdot m \cdot \Delta T \quad (\text{kcal, kg, } ^\circ C) $$
+
+- **Electric Heat Formulas**:
+  1.  **Practical**: $$ H = 860 \cdot P \cdot t \quad (\text{kcal, kW, h}) $$
+  2.  **Basic**: $$ H = 0.24 \cdot P \cdot t \quad (\text{cal, W, s}) $$
+
+- **Stored Energy**:
+  $$ W = \frac{1}{2}CV^2 \quad (\text{J, F, V}) $$
+
+- **Constants**:
+  $$ 1 \text{ kWh} = 860 \text{ kcal} $$
+  $$ 1 \text{ J} \approx 0.24 \text{ cal} $$
+
+- **Water**: $1 \text{ L} \approx 1 \text{ kg}$, $c = 1$.
+
+- **Efficiency**: Input = Output / Efficiency.
+
+#### **2. Understand This!**
+
+- **Energy Flow**: Electrical Energy $\to$ Efficiency Loss $\to$ Useful Heat.
+- **Why 860?**: It compresses $0.24 \times 1000 \times 3600$ into one number.
+
+#### **3. Strategy**
+
+1.  **Read & Sort Info**: List P, t, T, efficiency, etc.
+2.  **Order**:
+    - Find P? (1) Calc Q ($cm\Delta T$) $\to$ (2) Apply Efficiency $\to$ (3) Calc P.
+    - Find T? (1) Calc Total W ($Pt$) $\to$ (2) Apply Efficiency $\to$ (3) Calc $\Delta T$.
+3.  **Check Units**: kW/W, h/s, kcal/cal. Crucial!
+
+
+========================================
+
+
+# Electrostatics (Force, Field, Potential)
+
+## Standard Problem
+There is a point charge of $3 \times 10^{-8}$ C in air. What is the potential difference (V) between point A, 1 m away from this charge, and point B, 3 m away?
+
+**Answer:** 180
+
+---
+
+## Coverage
+(example.txt: QIDs removed)
+
+## Verification Summary
+- Cycles: 3 (pass 2 / fail 1)
+- Final decision: pass
+- Consecutive-pass streak at finish: 2 (target: 2)
+
+---
+
+## Detailed Explanation
+### **Problem Type: Electrostatics (Force, Field, Potential, Dielectric, Capacitor)**
+
+**Standard Problem:**
+There is a point charge of $3 \times 10^{-8}$ C in air. What is the potential difference (V) between point A, 1 m away from this charge, and point B, 3 m away?
+
+---
+
+### 1. Concept Explanation
+
+To solve this, we must build concepts from the ground up: Charge $\to$ Force $\to$ Field $\to$ Potential $\to$ Capacitor.
+
+#### 1.1. The Beginning: Electric Charge
+
+Matter consists of atoms with protons (+) and electrons (-). The quantity of this 'electrical property' is **Charge**.
+
+*   **Types**: Positive (+) and Negative (-).
+*   **Unit**: **Coulomb (C)**.
+*   **Properties**:
+    *   Like charges repel (**Repulsion**).
+    *   Opposite charges attract (**Attraction**).
+*   **Point Charge**: An ideal model where charge size is ignored, treated as a 'point'.
+
+#### 1.2. Force: Coulomb's Law
+
+The force between two charges.
+
+*   **Magnitude**:
+    1.  Proportional to product of charges ($Q_1 \times Q_2$).
+    2.  Inversely proportional to **square of distance ($r^2$)**. (Distance $\times 2 \to$ Force $\times 1/4$).
+
+#### 1.3. Medium & Field: Permittivity and Electric Field
+
+**1) Permittivity ($\epsilon$)**:
+Property of the medium indicating how well it transmits electric force.
+*   High $\epsilon$: Force gets **weaker** (more obstruction).
+*   Low $\epsilon$: Force gets **stronger**.
+*   Formula: $\epsilon = \epsilon_0 \times \epsilon_s$ (Vacuum Permittivity $\times$ Relative Permittivity).
+
+**2) Electric Field ($E$)**:
+The space where electric force is exerted.
+*   **Intensity ($E$)**: Force experienced by $+1$ C charge. $E = F/Q$. Unit: [N/C] or [V/m].
+
+**3) Formulas**:
+
+| Quantity | Formula (with $\epsilon$) | Formula (Air/Vacuum, with $k$) |
+| :--- | :--- | :--- |
+| **Force** | $$F = \frac{1}{4\pi\epsilon} \frac{Q_1 Q_2}{r^2}$$ | $$F = k \frac{Q_1 Q_2}{r^2}$$ |
+| **Field** | $$E = \frac{1}{4\pi\epsilon} \frac{Q}{r^2}$$ | $$E = k \frac{Q}{r^2}$$ |
+
+*   **Coulomb Constant ($k$)**: $k \approx 9 \times 10^9$ in air/vacuum. **Use this for most problems.**
+
+**4) Electric Field Lines**:
+Visual lines representing the field.
+*   **Properties (Important!)**: Start at (+), end at (-). Tangent is field direction. Never cross. Density = Strength. Perpendicular to conductor surface. **Does not exist inside a conductor.**
+
+#### 1.4. Electrical Potential Energy: Potential ($V$)
+
+Electrical "Height" or potential energy level.
+
+*   **Definition**: Work done to bring $+1$ C from infinity to a point.
+    *   $V = W/Q$. Unit: **Volt (V)**.
+*   **Point Charge Potential Formula**:
+    $$ V = \frac{1}{4\pi\epsilon} \frac{Q}{r} \quad \text{or} \quad V = k \frac{Q}{r} $$
+    *   **Crucial Difference**: Force/Field is $\propto 1/r^2$, Potential is $\propto 1/r$. Don't confuse them!
+*   **Potential Difference**: $V_{AB} = V_A - V_B$. Driving force of current.
+
+#### 1.5. Capacitor
+
+Component storing charge.
+*   **Capacitance ($C$)**: Ability to store charge. $C = Q/V$. Unit: **Farad (F)**.
+*   **Parallel Plate Capacitor**:
+    $$ C = \epsilon \frac{A}{d} $$
+    *   To increase $C$: High $\epsilon$, Large Area ($A$), Small Distance ($d$).
+*   **Electrostatic Attraction**: Force between plates. Proportional to **Voltage squared ($V^2$)**.
+
+#### 1.6. Conductor & Shielding
+
+*   **Conductor**: Charge stays on surface. **Internal Field is 0.** Equipotential.
+*   **Electrostatic Shielding**: Enclosing with conductor to block external field.
+
+---
+
+### 2. Standard Problem Explanation
+
+**Problem:** Charge $3 \times 10^{-8}$ C. Potential difference between A (1m) and B (3m)?
+
+#### **Step 1: Analyze**
+
+*   $Q = 3 \times 10^{-8}$ C
+*   Medium: Air ($k = 9 \times 10^9$)
+*   $r_A = 1$ m, $r_B = 3$ m
+*   Goal: $V_{AB} = V_A - V_B$
+
+#### **Step 2: Apply Formula**
+
+Potential formula: $V = k \frac{Q}{r}$.
+$$ V_{AB} = \left( k \frac{Q}{r_A} \right) - \left( k \frac{Q}{r_B} \right) $$
+
+#### **Step 3: Calculate**
+
+**1. Potential at A ($V_A$)**
+$$ V_A = (9 \times 10^9) \times \frac{3 \times 10^{-8}}{1} $$
+$$ V_A = 27 \times 10^1 = 270 \text{ V} $$
+
+**2. Potential at B ($V_B$)**
+$$ V_B = (9 \times 10^9) \times \frac{3 \times 10^{-8}}{3} $$
+$$ V_B = 9 \times 10^1 = 90 \text{ V} $$
+
+**3. Potential Difference ($V_{AB}$)**
+$$ V_{AB} = 270 - 90 = 180 \text{ V} $$
+
+#### **Step 4: Check**
+
+Closer point (A) has higher potential. $270 > 90$. Correct.
+
+**Final Answer: 180**
+
+---
+
+### 3. Patterns & Intent
+
+#### **Pattern 1: Calculating F, E, V**
+*   **Example**: "Force between 10μC and 20μC at 1m?"
+*   **Trap**: Confusing $1/r^2$ (Force/Field) with $1/r$ (Potential).
+*   **Strategy**: Write formula next to keyword. Convert units ($\mu \to 10^{-6}$, cm $\to$ m).
+
+#### **Pattern 2: Capacitor ($C$)**
+*   **Example**: "How to increase capacitance?"
+*   **Trap**: "Proportional to distance ($d$)" (False, it's inverse).
+*   **Strategy**: Formula $C = \epsilon A/d$. Numerator=Proportional, Denominator=Inverse.
+
+#### **Pattern 3: Permittivity**
+*   **Example**: "Dielectric with relative permittivity 9..."
+*   **Strategy**: $\epsilon = \epsilon_0 \epsilon_s$.
+
+#### **Pattern 4: Definitions**
+*   **Example**: "Properties of Field Lines", "Electrostatic Shielding".
+*   **Strategy**: Memorize properties summary.
+
+---
+
+### 4. Study Method
+
+#### **1. Memorize (Formulas)**
+
+| Concept | Formula | Note |
+| :--- | :--- | :--- |
+| **Force** | $$F = k \frac{Q_1 Q_2}{r^2}$$ | Inverse Square |
+| **Field** | $$E = k \frac{Q}{r^2}$$ | Inverse Square |
+| **Potential** | $$V = k \frac{Q}{r}$$ | Inverse Distance |
+| **Work** | $$W = QV$$ | |
+| **Capacitor** | $$C = \frac{Q}{V}, C = \epsilon \frac{A}{d}$$ | |
+| **Permittivity** | $$\epsilon = \epsilon_0 \epsilon_s$$ | |
+
+*   **Constant**: $k = 9 \times 10^9$.
+
+#### **2. Understand**
+
+*   **$1/r^2$ vs $1/r$**: Force spreads over area ($\propto r^2$), Potential is stacked height ($\propto r$).
+*   **Flow**: Charge $\to$ Field $\to$ Potential $\to$ Work.
+
+#### **3. Summary**
+
+1.  **Coulomb Force**: Most frequent calculation.
+2.  **Field Lines**: Frequent True/False concept questions.
+3.  **W=QV**: Simple calc.
+4.  **Capacitor**: $C = \epsilon A/d$ logic.
+
+Mastering the distinction between **Force/Field ($1/r^2$)** and **Potential ($1/r$)** is the key to calculation problems.
