@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hit Thunder</title>
+    <meta
+      name="description"
+      content="Hit Thunder — exam study workbench: guide builder + renderer/practice."
+    />
+    <style>
+      :root {
+        --bg0: #0b1220;
+        --bg1: #0f1a2b;
+        --card: rgba(255, 255, 255, 0.06);
+        --card2: rgba(255, 255, 255, 0.08);
+        --stroke: rgba(255, 255, 255, 0.12);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.72);
+        --muted2: rgba(255, 255, 255, 0.6);
+        --accent: #7c5cff;
+        --accent2: #4ee8b0;
+        --shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        color: var(--text);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial,
+          "Apple Color Emoji",
+          "Segoe UI Emoji";
+        background:
+          radial-gradient(1200px 800px at 10% -10%, rgba(124, 92, 255, 0.25), transparent 55%),
+          radial-gradient(1000px 700px at 95% 0%, rgba(78, 232, 176, 0.18), transparent 55%),
+          radial-gradient(900px 700px at 40% 115%, rgba(255, 205, 87, 0.12), transparent 60%),
+          linear-gradient(180deg, var(--bg0), var(--bg1));
+      }
+      .wrap {
+        max-width: 1040px;
+        padding: 56px 20px 40px;
+        margin: 0 auto;
+      }
+      .top {
+        display: grid;
+        gap: 18px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background:
+          radial-gradient(12px 12px at 30% 30%, rgba(255, 255, 255, 0.25), transparent 60%),
+          linear-gradient(135deg, rgba(124, 92, 255, 0.9), rgba(78, 232, 176, 0.78));
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+      }
+      h1 {
+        margin: 0;
+        letter-spacing: -0.02em;
+        font-size: 34px;
+      }
+      .sub {
+        color: var(--muted);
+        line-height: 1.55;
+        font-size: 15px;
+        max-width: 70ch;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 22px;
+      }
+      @media (max-width: 860px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card {
+        background: linear-gradient(180deg, var(--card), rgba(255, 255, 255, 0.03));
+        border: 1px solid var(--stroke);
+        border-radius: 16px;
+        padding: 18px 18px 16px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+      .card h2 {
+        margin: 0 0 6px;
+        font-size: 18px;
+        letter-spacing: -0.01em;
+      }
+      .card p {
+        margin: 0 0 12px;
+        color: var(--muted2);
+        line-height: 1.55;
+        font-size: 14px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+        text-decoration: none;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        transition:
+          transform 0.14s ease,
+          background 0.14s ease,
+          border-color 0.14s ease;
+        user-select: none;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.09);
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+      .btn.primary {
+        border-color: rgba(124, 92, 255, 0.45);
+        background: linear-gradient(
+          135deg,
+          rgba(124, 92, 255, 0.95),
+          rgba(78, 232, 176, 0.6)
+        );
+      }
+      .btn.primary:hover {
+        border-color: rgba(124, 92, 255, 0.65);
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.05);
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 12px;
+      }
+      .hint {
+        margin-top: 18px;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 12.5px;
+        line-height: 1.55;
+      }
+      code {
+        font-family:
+          ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Monaco,
+          Consolas,
+          "Liberation Mono",
+          "Courier New",
+          monospace;
+        font-size: 0.95em;
+      }
+      .kbd {
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.06);
+        padding: 2px 6px;
+        border-radius: 8px;
+        font-weight: 650;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="top">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div>
+            <h1>Hit Thunder</h1>
+            <div class="pill" title="Two single-file tools">
+              Guide builder + renderer/practice (single-file HTML)
+            </div>
+          </div>
+        </div>
+        <div class="sub">
+          Use <code>summary.html</code> to build/refine a guide the renderer can read, then open
+          <code>renderer.html</code> to view it like a textbook and grind problems in exam mode.
+        </div>
+      </section>
+
+      <section class="grid" aria-label="Apps">
+        <article class="card">
+          <h2>Renderer / Practice</h2>
+          <p>View a guide, search/filter, and practice with exam-style interactions.</p>
+          <div class="row">
+            <a class="btn primary" href="renderer.html">Open renderer</a>
+            <a class="btn" href="renderer.html#help">Help</a>
+          </div>
+        </article>
+        <article class="card">
+          <h2>Guide Builder (요약본)</h2>
+          <p>
+            Create and patch the exact guide format the renderer expects. This is the core “guide
+            authoring” tool in the workflow.
+          </p>
+          <div class="row">
+            <a class="btn primary" href="summary.html">Open builder</a>
+          </div>
+        </article>
+      </section>
+
+      <div class="hint">
+        Tip: You can usually double-click <code>index.html</code> to run locally. If your browser blocks
+        <code>fetch()</code> on <code>file://</code>, run a local server (see <code>README.md</code>).
+        <span class="kbd">Ctrl</span> + <span class="kbd">L</span> then type <code>index.html</code> to come back here.
+      </div>
+    </main>
+  </body>
+</html>

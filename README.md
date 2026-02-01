@@ -10,11 +10,17 @@ The world is changing fast, but we still get judged by overfitted, old-school ex
 
 ## What’s in here
 
+- `index.html`: a simple landing page (useful for GitHub Pages).
 - `renderer.html`: a Markdown + LaTeX guide viewer with an exam-style practice mode.
-- `summary.html`: a separate helper tool for generating/refining a study guide with an LLM (optional).
+- `summary.html`: the core guide-building tool that generates/refines the exact guide format `renderer.html` reads.
 - `example_en.txt`, `example_ko.txt`: example guides (they auto-load based on UI language when no guide is saved).
 
 ## Quick start
+
+### Option 0: just double-click it
+You can usually run it by double-clicking `index.html` (or `renderer.html` / `summary.html`).
+
+If your browser blocks `fetch()` on `file://`, use a local server (below).
 
 ### Option A (recommended): run a tiny local web server
 Some browsers restrict `fetch()` when opening HTML files via `file://`. A local server avoids that.
@@ -26,7 +32,7 @@ python -m http.server 8000
 
 Then open:
 
-- `http://localhost:8000/renderer.html`
+- `http://localhost:8000/` (landing page)
 
 ### Option B: open the HTML directly
 You can still open `renderer.html` directly and load a guide using the “Guide” button.
