@@ -65,7 +65,7 @@ Final Mastery Manual Viewer는 **단일 HTML 파일 기반 학습 작업공간**
 ---
 
 ## Coverage
-(example.txt: QIDs removed)
+(QIDs removed)
 
 ## Verification Summary
 - Cycles: 6 (pass 3 / fail 1)
@@ -337,7 +337,7 @@ $$ W = (1.118 \times 10^{-3}) \times 5 \times 1800 $$
 ---
 
 ## Coverage
-(example.txt: QIDs removed)
+(QIDs removed)
 
 ## Verification Summary
 - Cycles: 8 (pass 5 / fail 3)
@@ -671,7 +671,7 @@ Choices: ① 4
 ---
 
 ## Coverage
-(example.txt: QIDs removed)
+(QIDs removed)
 
 ## Verification Summary
 - Cycles: 4 (pass 2 / fail 2)
@@ -949,7 +949,7 @@ Choices: ① 2.3
 ---
 
 ## Coverage
-(example.txt: QIDs removed)
+(QIDs removed)
 
 ## Verification Summary
 - Cycles: 3 (pass 2 / fail 1)
@@ -1263,7 +1263,7 @@ $P = \frac{2352.94 \text{ kcal}}{860 \frac{\text{kcal}}{\text{kWh}} \cdot 1 \tex
 ---
 
 ## Coverage
-(example.txt: QIDs removed)
+(QIDs removed)
 
 ## Verification Summary
 - Cycles: 3 (pass 2 / fail 1)

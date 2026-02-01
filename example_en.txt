@@ -65,7 +65,7 @@ We intend to perform silver plating by electrolyzing a silver nitrate ($AgNO_3$)
 ---
 
 ## Coverage
-(example.txt: QIDs removed)
+(QIDs removed)
 
 ## Verification Summary
 - Cycles: 6 (pass 3 / fail 1)
@@ -337,7 +337,7 @@ In a circuit like the figure below, what is the current flowing through resistor
 ---
 
 ## Coverage
-(example.txt: QIDs removed)
+(QIDs removed)
 
 ## Verification Summary
 - Cycles: 8 (pass 5 / fail 3)
@@ -671,7 +671,7 @@ Choices: ① 4
 ---
 
 ## Coverage
-(example.txt: QIDs removed)
+(QIDs removed)
 
 ## Verification Summary
 - Cycles: 4 (pass 2 / fail 2)
@@ -948,7 +948,7 @@ Choices: ① 2.3
 ---
 
 ## Coverage
-(example.txt: QIDs removed)
+(QIDs removed)
 
 ## Verification Summary
 - Cycles: 3 (pass 2 / fail 1)
@@ -1211,7 +1211,7 @@ There is a point charge of $3 \times 10^{-8}$ C in air. What is the potential di
 ---
 
 ## Coverage
-(example.txt: QIDs removed)
+(QIDs removed)
 
 ## Verification Summary
 - Cycles: 3 (pass 2 / fail 1)
