@@ -1,4 +1,6 @@
-# Exam Study Workbench
+# Hit Thunder
+
+> Name origin: “Hit Thunder” is a deliberately grammar-breaking literal translation of the Korean slang “벼락치기” (cramming).
 
 Two single-file study tools I built for my own exam prep.
 
@@ -38,4 +40,3 @@ You can still open `renderer.html` directly and load a guide using the “Guide�
 ## License
 
 MIT — see `LICENSE`.
-
