@@ -7084,26 +7084,27 @@ function __extractActualTokens(data) {
         }
 
 
-        // NEW: Build a stable, global question ID that encodes which paper it came from.
-        // This solves the "Q1 from which file?" ambiguity for both humans and other agents.
-        // NEW: Build a stable, global question ID that encodes which paper it came from.
-        // This solves the "Q1 from which file?" ambiguity for both humans and other agents.
-        function makeGlobalQid(paperName, localQid) {
-            // Normalize the paperName into a cleaner slug for better readability
-            // "My Exam (Part 1, p1-5).pdf" -> "My_Exam_Part_1_p1-5"
-            // FIX: Merge split parts back to original filename if specific suffix is found
-            let slug = paperName.replace(/_Part_\d+(?:_p\d+(?:-\d+)?)?/gi, '');
+	        // NEW: Build a stable, global question ID that encodes which paper it came from.
+	        // This solves the "Q1 from which file?" ambiguity for both humans and other agents.
+	        // NEW: Build a stable, global question ID that encodes which paper it came from.
+	        // This solves the "Q1 from which file?" ambiguity for both humans and other agents.
+	        function makeGlobalQid(paperName, localQid) {
+	            // IMPORTANT: OCR units may be split into parts for processing ("(Part N, pX-Y)"),
+	            // but QIDs must use the *original source file name* (no Part suffix) for readability.
+	            const base = (() => {
+	                let s = deriveSourceFileNameFromUnitName(paperName);
+	                // Legacy/defensive: handle underscore-style suffixes seen in older QIDs (e.g., ".pdf_Part_6_p16-18").
+	                s = s.replace(/_Part_\d+(?:_p\d+(?:-\d+)?)?/gi, '');
+	                s = String(s || '').replace(/\s+/g, ' ').trim();
+	                // Normalize extension casing (cosmetic but stabilizes output).
+	                s = s.replace(/\.pdf$/i, '.pdf').replace(/\.txt$/i, '.txt');
+	                return s;
+	            })();
 
-            slug = slug
-                .replace(/\.pdf$|\.txt$/i, '') // remove extension
-                .replace(/[()\s,]+/g, '_')     // replace spaces, parens, commas with underscores
-                .replace(/_+/g, '_')           // collapse multiple underscores
-                .replace(/^_+|_+$/g, '');     // trim underscores from start/end
-
-            // We choose "::" as a delimiter because it's visually obvious and easy to parse.
-            // Example: "Midterm2024::Q1b"
-            return `${slug}::${localQid}`;
-        }
+	            // We choose "::" as a delimiter because it's visually obvious and easy to parse.
+	            // Example: "Midterm2024.pdf::Q1b"
+	            return `${base}::${localQid}`;
+	        }
 
         function deriveSourceFileNameFromUnitName(unitName) {
             const name = String(unitName || '').trim();
