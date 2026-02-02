@@ -77,6 +77,7 @@
 	      --bg-elev: #111720;
 	      --fg: #e6edf3;
 	      --muted: #9aa4af;
+	      --main-pad-x: 14px;
       --accent: #4cc2ff;
       --accent-2: #7ce38b;
       --danger: #ff6b6b;
@@ -180,7 +181,7 @@
     .bar {
       max-width: min(1600px, 100%);
       margin: 0 auto;
-      padding: 6px 14px;
+      padding: 6px var(--main-pad-x);
       display: flex;
       gap: 10px;
       align-items: center;
@@ -345,7 +346,7 @@
     main {
       max-width: 1200px;
       margin: 14px auto 40px;
-      padding: 0 18px;
+      padding: 0 var(--main-pad-x);
     }
 
     .panel {
@@ -1619,6 +1620,20 @@
 	    /* FIX: make MathJax follow surrounding font-size controls (memo A±, UI font +/-) */
 	    mjx-container {
 	      font-size: inherit !important;
+	    }
+	    /* FIX: long LaTeX on mobile should not overflow the guide panel */
+	    mjx-container {
+	      max-width: 100%;
+	      overflow-x: auto;
+	      overflow-y: hidden;
+	    }
+	    mjx-container[display="true"],
+	    mjx-container[display="block"] {
+	      display: block;
+	    }
+	    mjx-container[display="false"],
+	    mjx-container[display="inline"] {
+	      display: inline-block;
 	    }
 
     /* --- NEW: image helpers for memos --- */
@@ -4222,12 +4237,14 @@
 	      solveFont: Number(store.getItem('fmm_ui_solveFontSize') || store.getItem('fmm_ui_fontSize') || 15),
 	      memoPreviewFont: Number(store.getItem('fmm_ui_memoPreviewFont') || store.getItem('fmm_ui_fontSize') || 15),
 	      autoAsciiMath: (store.getItem('fmm_ui_autoAsciiMath') || '0') === '1',
+	      pad: Number(store.getItem('fmm_ui_mainPadX') || 14),
 	      width: Number(store.getItem('fmm_ui_mainWidth') || 1200),
 	      apply() {
 	        const out = document.getElementById('output');
 	        const mainEl = document.querySelector('main');
 	        document.documentElement.style.setProperty('--memo-preview-font', this.memoPreviewFont + 'px');
 	        document.documentElement.style.setProperty('--solve-font', this.solveFont + 'px');
+	        document.documentElement.style.setProperty('--main-pad-x', this.pad + 'px');
 	        if (out) out.style.fontSize = this.font + 'px';
 	        if (mainEl) mainEl.style.maxWidth = this.width + 'px';
 	      },
@@ -4236,6 +4253,7 @@
 	        store.setItem('fmm_ui_solveFontSize', String(this.solveFont));
 	        store.setItem('fmm_ui_memoPreviewFont', String(this.memoPreviewFont));
 	        store.setItem('fmm_ui_autoAsciiMath', this.autoAsciiMath ? '1' : '0');
+	        store.setItem('fmm_ui_mainPadX', String(this.pad));
 	        store.setItem('fmm_ui_mainWidth', String(this.width));
 	      }
 	    };
@@ -4248,8 +4266,22 @@
 	    solveFontPlus && solveFontPlus.addEventListener('click', () => { UI.solveFont = clamp(UI.solveFont + 1, 12, 26); UI.apply(); UI.save(); });
 	    memoFontMinus && memoFontMinus.addEventListener('click', () => { UI.memoPreviewFont = clamp(UI.memoPreviewFont - 1, 12, 32); UI.apply(); UI.save(); });
 	    memoFontPlus && memoFontPlus.addEventListener('click', () => { UI.memoPreviewFont = clamp(UI.memoPreviewFont + 1, 12, 32); UI.apply(); UI.save(); });
-		    widthNarrow && widthNarrow.addEventListener('click', () => { UI.width = clamp(UI.width - 60, 820, 1600); UI.apply(); UI.save(); });
-		    widthWiden && widthWiden.addEventListener('click', () => { UI.width = clamp(UI.width + 60, 820, 1600); UI.apply(); UI.save(); });
+		    widthNarrow && widthNarrow.addEventListener('click', () => {
+		      if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+		        UI.pad = clamp(UI.pad + 4, 8, 24);
+		      } else {
+		        UI.width = clamp(UI.width - 60, 820, 1600);
+		      }
+		      UI.apply(); UI.save();
+		    });
+		    widthWiden && widthWiden.addEventListener('click', () => {
+		      if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+		        UI.pad = clamp(UI.pad - 4, 8, 24);
+		      } else {
+		        UI.width = clamp(UI.width + 60, 820, 1600);
+		      }
+		      UI.apply(); UI.save();
+		    });
 
 	    // === I18N (UI language) =======================================================
 	    const I18N = {
@@ -10735,18 +10767,28 @@
 		        } catch { }
 		        return s.split(/[\r\n,;|\s]+/).map(k => k.trim()).filter(Boolean);
 		      }
-		      function resolveEndpointTemplate(endpoint, model) {
-		        const url = String(endpoint || '').trim();
-		        const m = String(model || '').trim();
-		        return url.replaceAll('{model}', m).replaceAll('{{MODEL}}', m);
-		      }
-		      function detectApiModeFromEndpoint(endpoint) {
-		        const lower = String(endpoint || '').toLowerCase();
-		        if (lower.includes(':generatecontent') || lower.includes(':streamgeneratecontent')) return 'gemini_generatecontent';
-		        if (lower.includes('/ai/run/')) return 'cf_ai_run';
-		        if (lower.includes('/ai/v1/responses')) return 'cf_responses';
-		        return 'openai_chat_completions';
-		      }
+			      function resolveEndpointTemplate(endpoint, model) {
+			        const url = String(endpoint || '').trim();
+			        const m = String(model || '').trim();
+			        return url.replaceAll('{model}', m).replaceAll('{{MODEL}}', m);
+			      }
+				      function normalizeOpenAiCompatEndpoint(endpoint) {
+				        const raw = String(endpoint || '').trim();
+				        if (!raw) return raw;
+				        const lower = raw.toLowerCase();
+				        if (lower.includes('/chat/completions')) return raw;
+				        if (/\/v1\/[^/]+\/?$/i.test(raw)) return raw.replace(/\/?$/i, '') + '/chat/completions';
+				        if (/\/v1\/?$/i.test(raw)) return raw.replace(/\/v1\/?$/i, '/v1/chat/completions');
+				        if (/\/openai\/?$/i.test(raw)) return raw.replace(/\/openai\/?$/i, '/openai/chat/completions');
+				        return raw;
+				      }
+			      function detectApiModeFromEndpoint(endpoint) {
+			        const lower = String(endpoint || '').toLowerCase();
+			        if (lower.includes(':generatecontent') || lower.includes(':streamgeneratecontent')) return 'gemini_generatecontent';
+			        if (lower.includes('/ai/run/')) return 'cf_ai_run';
+			        if (lower.includes('/ai/v1/responses')) return 'cf_responses';
+			        return 'openai_chat_completions';
+			      }
 		      function withKeyParam(u, key) {
 		        if (!key) return u;
 		        try {
@@ -10979,17 +11021,18 @@
 		          body: { url: targetUrl, method: 'POST', headers, body }
 		        };
 		      }
-			      async function callLlmApiWithKeyRoll({ endpoint, proxyUrl, apiKeysRaw, model, messages, cursorKey, cooldownKey, timeoutMs, temperature, shouldAbort, bypassSystemRole }) {
-			        const m = String(model || '').trim();
-			        const url0 = resolveEndpointTemplate(endpoint, m);
-			        let url = url0;
-			        if (!url) throw new Error('Endpoint URL 없음');
-			        let keys = parseApiKeyList(apiKeysRaw);
-			        const apiMode = detectApiModeFromEndpoint(url);
-			        let finalMessages = Array.isArray(messages) ? messages.slice() : [];
-			        if (bypassSystemRole) finalMessages = adaptMessagesNoSystem(finalMessages);
-			        const errors = [];
-			        const attempts = Math.max(1, keys.length || 0);
+				      async function callLlmApiWithKeyRoll({ endpoint, proxyUrl, apiKeysRaw, model, messages, cursorKey, cooldownKey, timeoutMs, temperature, shouldAbort, bypassSystemRole }) {
+				        const m = String(model || '').trim();
+				        const url0 = resolveEndpointTemplate(endpoint, m);
+				        let url = url0;
+				        if (!url) throw new Error('Endpoint URL 없음');
+				        let keys = parseApiKeyList(apiKeysRaw);
+				        const apiMode = detectApiModeFromEndpoint(url);
+				        if (apiMode === 'openai_chat_completions') url = normalizeOpenAiCompatEndpoint(url);
+				        let finalMessages = Array.isArray(messages) ? messages.slice() : [];
+				        if (bypassSystemRole) finalMessages = adaptMessagesNoSystem(finalMessages);
+				        const errors = [];
+				        const attempts = Math.max(1, keys.length || 0);
 			        for (let attempt = 0; attempt < attempts; attempt++) {
 			          if (typeof shouldAbort === 'function' && shouldAbort()) throw new Error('사용자 중단');
 			          const pick = keys.length ? await pickApiKey(keys, { cursorKey, cooldownKey, shouldAbort }) : { key: '', idx: -1, waitMs: 0 };

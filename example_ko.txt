@@ -5,7 +5,7 @@
 
 내 데이터로 빠르게 시작:
 
-- 추천: `summary.html`(히트썬더 가이드 생성기)에서 PDF/TXT로 가이드 생성 → **렌더러 저장파일(.json)** 다운로드 → `renderer.html`에서 `⭱ Import`
+- 추천: `guide_maker.html`(히트썬더 가이드 생성기)에서 PDF/TXT로 가이드 생성 → **렌더러 저장파일(.json)** 다운로드 → `renderer.html`에서 `⭱ Import`
 - 또는: `📑 가이드`로 **가이드 텍스트**를 불러오고, `📂 문제`로 **유형문제 JSON**을 불러오면 됩니다.
 
 ---

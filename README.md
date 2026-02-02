@@ -12,20 +12,25 @@ The world is changing fast, but we still get judged by overfitted, old-school ex
 
 - `index.html`: a simple landing page (useful for GitHub Pages).
 - `renderer.html` (**Hit Thunder Renderer**): a guide viewer + exam-style practice workspace.
-- `summary.html` (**Hit Thunder Guide Maker**): the core tool that turns exam PDFs/TXT into a renderer-readable guide (and problems JSON).
+- `guide_maker.html` (**Hit Thunder Guide Maker**): the core tool that turns exam PDFs/TXT into a renderer-readable guide (and problems JSON).
 - `example_en.txt`, `example_ko.txt`: example guides (they auto-load based on UI language when no guide is saved).
 
 ## Quick start
 
 ### Option 0: just double-click it
-You can usually run it by double-clicking `index.html` (or `renderer.html` / `summary.html`).
+You can usually run it by double-clicking `index.html` (or `renderer.html` / `guide_maker.html`).
 
 If your browser blocks `fetch()` on `file://`, use a local server (below).
+
+### Option 0.5: test via GitHub Pages
+If GitHub Pages is enabled for this repo, you can also open:
+
+https://pineapplesour.github.io/Hit-Thunder/
 
 ## Workflow (Guide Maker → Renderer)
 
 ### 1) Build a guide from exam files
-Open `summary.html` and just drop your past-exam files:
+Open `guide_maker.html` and just drop your past-exam files:
 
 - PDF: runs OCR in-browser, then splits questions and builds a study guide.
 - TXT: uses the text directly (no OCR).
@@ -54,7 +59,7 @@ Open `renderer.html`, then choose one:
 Some browsers restrict `fetch()` when opening HTML files via `file://`. A local server avoids that.
 
 ```bash
-cd exam-study-workbench
+cd Hit-Thunder
 python -m http.server 8000
 ```
 
@@ -68,7 +73,7 @@ You can still open `renderer.html` directly and load a guide using the “Guide�
 ## Privacy & safety notes
 
 - By default, everything is stored locally in your browser (localStorage/sessionStorage/IndexedDB).
-- If you enable LLM features (in `renderer.html` / `summary.html`), the content you’re working with will be sent to the endpoint you configure. Don’t paste secrets.
+- If you enable LLM features (in `renderer.html` / `guide_maker.html`), the content you’re working with will be sent to the endpoint you configure. Don’t paste secrets.
 - Exports can contain your notes/history. Treat exported files as sensitive if your notes are sensitive.
 
 ## License

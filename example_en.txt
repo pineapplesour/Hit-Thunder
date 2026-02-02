@@ -5,7 +5,7 @@ This is an example guide that `renderer.html` auto-loads **only when you open it
 
 Quick start (your real data):
 
-- Recommended: in `summary.html` (Hit Thunder Guide Maker), build from your exam PDF/TXT → download the **renderer save file (.json)** → in `renderer.html` click `⭱ Import`.
+- Recommended: in `guide_maker.html` (Hit Thunder Guide Maker), build from your exam PDF/TXT → download the **renderer save file (.json)** → in `renderer.html` click `⭱ Import`.
 - Or: load the **guide** via `📑 Guide`, then load **type problems** via `📂 Problems`.
 
 ---
