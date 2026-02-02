@@ -1016,6 +1016,10 @@
     .problems-item.flash {
       animation: fmmFlash 1.2s ease-out;
     }
+    .sidebar-panel.flash,
+    .memo-textarea.flash {
+      animation: fmmFlash 1.2s ease-out;
+    }
 
     @media (max-width: 980px) {
 
@@ -1132,7 +1136,8 @@
 	    /* Render-edit mode: click rendered blocks to edit small chunks (without opening full raw editor) */
 	    .fmm-render-edit-on .fmm-rend-block {
 	      border-radius: 8px;
-	      padding: 2px 0;
+	      /* Avoid layout/scroll jumps when toggling render-edit mode. */
+	      padding: 0;
 	    }
 	    .fmm-render-edit-on .fmm-rend-block:hover {
 	      outline: 1px dashed var(--accent);
@@ -3904,8 +3909,12 @@
       problemsChanged = true;
       if (problemsChanged) {
         const rebuildFullIndex = () => {
-          const src = problems.json?.types || {};
           scrubProblemsJsonPlaceholderAnswers();
+          try { normalizeProblemsPaperNamesInPlace(problems.json); } catch { }
+          try { migratePartSuffixQids(); } catch { }
+          try { repairObjectArtifactsInAllData(); } catch { }
+
+          const src = problems.json?.types || {};
           problems.norm = {};
           problems.byQid = {};
           problems.qidType = {};
@@ -3919,6 +3928,7 @@
               problems.byQid[qid] = { ...p, __typeTitle: k };
             });
           });
+          try { window.fmm_patch_problems = { ...(problems.json?.types || {}) }; } catch { }
           try { LS.set('fmm_problems_json', problems.json); } catch { }
           try { store.setItem('fmm_problems_json', JSON.stringify(problems.json)); } catch { }
         };
@@ -5378,7 +5388,8 @@
 			    function extractPaperFromQid(qid) {
 			      const s = String(qid || '');
 			      const idx = s.indexOf('::');
-			      const paper = idx > 0 ? s.slice(0, idx) : '';
+			      const m = (idx <= 0) ? s.match(/^(.*?):\s*(Q\d+[a-z]?(?:@[-_0-9A-Za-z가-힣]+)?)$/i) : null;
+			      const paper = idx > 0 ? s.slice(0, idx) : (m ? m[1] : '');
 			      return canonicalizePaperName(paper);
 			    }
 		    function extractQuestionNumberFromQid(qid) {
@@ -6243,7 +6254,15 @@
 	      // === NEW: QID canonicalization / merge for split PDF parts =================
 	      // Example: Some generators emit `xxx.pdf_Part_4_p10-12::Q13` which should be treated as `xxx.pdf::Q13`.
 	      function canonicalizePartSuffixQid(qid) {
-	        const s = String(qid || '').trim();
+	        let s = String(qid || '').trim();
+	        if (!s) return s;
+
+	        // Legacy compat: allow single-colon delimiter like "file.pdf:Q13" and normalize to "::".
+	        if (s.indexOf('::') < 0) {
+	          const m = s.match(/^(.*?):\s*(Q\d+[a-z]?(?:@[-_0-9A-Za-z가-힣]+)?)$/i);
+	          if (m) s = `${String(m[1] || '').trim()}::${String(m[2] || '').trim()}`;
+	        }
+
 	        const idx = s.indexOf('::');
 	        if (idx <= 0) return s;
 	        const paper = s.slice(0, idx);
@@ -6379,6 +6398,40 @@
 	      }
 	      function migratePartSuffixQids() {
 	        const map = {};
+	        const localCandidates = new Map(); // local_qid -> Set(full_global_qid)
+	        const noteLocalCandidate = (localQid, fullQid) => {
+	          const local = String(localQid || '').trim();
+	          const full = String(fullQid || '').trim();
+	          if (!local || !full) return;
+	          if (local.indexOf('::') >= 0) return;
+	          if (!localCandidates.has(local)) localCandidates.set(local, new Set());
+	          localCandidates.get(local).add(full);
+	        };
+	        const paperSlugFromName = (paperName) => {
+	          let s = canonicalizePaperName(paperName);
+	          if (!s) return '';
+	          // Align with guide-maker's global QID prefix logic (readability + stability).
+	          s = s.replace(/_Part_\d+(?:_p\d+(?:-\d+)?)?/gi, '');
+	          s = s.replace(/\.pdf$|\.txt$/i, '');
+	          s = s.replace(/[()\s,]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+	          return s;
+	        };
+	        let _paperReg = null;
+	        const paperSlugForProblem = (p) => {
+	          if (!p || typeof p !== 'object') return '';
+	          let name = String(p.paperSourceName || p.paperName || '').trim();
+	          if (!name) {
+	            const pid = String(p.paperId || '').trim();
+	            if (pid) {
+	              try {
+	                _paperReg = _paperReg || ensurePaperRegistry();
+	                name = String(_paperReg?.papers?.[pid]?.name || '').trim();
+	              } catch { }
+	            }
+	          }
+	          if (!name) name = String(extractPaperFromQid(p.qid) || '').trim();
+	          return paperSlugFromName(name);
+	        };
 	        const note = (qid) => {
 	          const old = String(qid || '').trim();
 	          if (!old) return;
@@ -6402,7 +6455,22 @@
 	        const typesObj = problems.json?.types;
 	        if (typesObj && typeof typesObj === 'object') {
 	          Object.keys(typesObj).forEach(typeTitle => {
-	            (typesObj[typeTitle] || []).forEach(p => note(p?.qid));
+	            (typesObj[typeTitle] || []).forEach(p => {
+	              const q = String(p?.qid || '').trim();
+	              if (!q) return;
+	              note(q);
+
+	              // Also build a conservative mapping for legacy bare qids (e.g. "Q13" -> "Paper::Q13")
+	              const canon = canonicalizePartSuffixQid(q);
+	              const idx = canon.indexOf('::');
+	              if (idx > 0) {
+	                const local = canon.slice(idx + 2).trim();
+	                if (local) noteLocalCandidate(local, canon);
+	              } else {
+	                const slug = paperSlugForProblem(p);
+	                if (slug) noteLocalCandidate(q, `${slug}::${q}`);
+	              }
+	            });
 	          });
 	        }
 	        const hist = LS.get(SOLVE_HISTORY_KEY, []);
@@ -6416,7 +6484,14 @@
 	        });
 	        const sheets = LS.get(SHEETS_KEY, []);
 	        (sheets || []).forEach(s => { (s?.qids || []).forEach(note); });
-	
+
+	        // Finalize legacy local->global mappings if unambiguous.
+	        localCandidates.forEach((set, local) => {
+	          if (!local || Object.prototype.hasOwnProperty.call(map, local)) return;
+	          const uniq = Array.from(new Set(Array.from(set || []).map(v => String(v || '').trim()).filter(Boolean)));
+	          if (uniq.length === 1 && uniq[0] && uniq[0] !== local) map[local] = uniq[0];
+	        });
+
 	        const hasMapping = Object.keys(map).length > 0;
 	
 	        // 2) Normalize/merge problems.json qids (and de-dupe/merge collisions across split parts)
@@ -6975,6 +7050,10 @@
         return s.replace(/[^a-zA-Z0-9_-]/g, (ch) => '\\' + ch.charCodeAt(0).toString(16) + ' ');
       }
       function flashProblemsItem(el) {
+        if (!el) return;
+        flashUiElement(el);
+      }
+      function flashUiElement(el) {
         if (!el) return;
         el.classList.remove('flash');
         // force reflow so the animation restarts even if called twice quickly
@@ -7632,6 +7711,14 @@
 	
 	      function toggleRenderEdit(typeIndex, side, on) {
 	        const idx = Number(typeIndex);
+	        const secId = `type-${idx + 1}`;
+	        const sec = document.getElementById(secId);
+	        const contentSel = side === 'problem' ? '.standard-content' : '.explanation-content';
+	        const rootBefore = sec ? (sec.querySelector(contentSel) || sec) : null;
+	        const scrollAnchor = captureReadingAnchorText(rootBefore);
+	        const secTopAbs = sec ? (sec.getBoundingClientRect().top + window.scrollY) : 0;
+	        const scrollRel = sec ? (window.scrollY - secTopAbs) : 0;
+
 	        const key = renderEditKey(idx, side);
 	        const next = (typeof on === 'boolean') ? on : !renderEditState.active.has(key);
 	        if (next) {
@@ -7641,6 +7728,18 @@
 	          renderEditState.active.delete(key);
 	          renderTypeSectionNormal(idx, side);
 	        }
+
+	        // Keep the user's reading position stable (render-edit toggling can subtly change layout).
+	        requestAnimationFrame(() => {
+	          const secNew = document.getElementById(secId);
+	          if (!secNew) return;
+	          const root = secNew.querySelector(contentSel) || secNew;
+	          const ok = restoreReadingAnchorText(root, scrollAnchor);
+	          if (!ok) {
+	            const topAbs2 = secNew.getBoundingClientRect().top + window.scrollY;
+	            window.scrollTo({ top: topAbs2 + (scrollRel || 0) });
+	          }
+	        });
 	        return next;
 	      }
 	
@@ -10413,13 +10512,113 @@
 
 		        if (mode === 'type') {
 		          const sec = $$('.type-card')[currentTypeIndex()];
+		          const label = currentTypeTitle() || '';
 		          if (sec) {
-		            const label = currentTypeTitle() || '';
 		            textSearch(sec.querySelector('.problem'), `현재 유형 · 표준문제 · ${label}`);
 		            textSearch(sec.querySelector('.explanation'), `현재 유형 · 해설 · ${label}`);
 		            texSearch(sec.querySelector('.problem'), `현재 유형 · 표준문제 · ${label}`);
 		            texSearch(sec.querySelector('.explanation'), `현재 유형 · 해설 · ${label}`);
 		          }
+
+		          // Also search the current type memo (right sidebar) and navigate with highlight.
+		          const openTypeMemoAndHighlight = (opts = {}) => {
+		            const panel = document.getElementById('typeMemoPanel');
+		            const aside = document.getElementById('typeAside') || panel?.closest('.aside') || null;
+		            if (aside) {
+		              try { aside.style.display = ''; } catch { }
+		              try { restoreSavedBox(aside, 'fmm_ui_typeAside'); } catch { }
+		              try { aside.classList.remove('min'); } catch { }
+		            }
+		            if (panel) {
+		              try { panel.classList.remove('min'); } catch { }
+		              const minBtn = panel.querySelector('button[data-action="min"][data-target="#typeMemoPanel"]');
+		              if (minBtn) { minBtn.textContent = '—'; minBtn.title = '접기'; }
+		              flashUiElement(panel);
+		            }
+		            const ta = document.getElementById('typeMemo');
+		            if (ta) {
+		              const v = String(ta.value || '');
+		              const idx = v.toLowerCase().indexOf(needleLower);
+		              try { ta.focus(); } catch { }
+		              if (idx >= 0 && typeof ta.setSelectionRange === 'function') {
+		                try { ta.setSelectionRange(idx, idx + needleLen); } catch { }
+		              }
+		              flashUiElement(ta);
+		            }
+
+		            // Optional: open category list + select a specific memo chunk
+		            const memoId = opts.memoId;
+		            if (panel && memoId != null) {
+		              const listEl = panel.querySelector('.category-list');
+		              const showBtn = panel.querySelector('button[data-act="show"]');
+		              try {
+		                if (listEl && listEl.style.display === 'none') showBtn?.click();
+		              } catch { }
+		              try { panel._category?.refresh?.(); } catch { }
+		              const btn = panel.querySelector(`button.category-memo-btn[data-memo-id="${String(memoId)}"]`);
+		              if (btn) {
+		                try { btn.click(); } catch { }
+		                const ta2 = document.getElementById('typeMemo');
+		                if (ta2) {
+		                  const vv = String(ta2.value || '');
+		                  const j = vv.toLowerCase().indexOf(needleLower);
+		                  try { ta2.focus(); } catch { }
+		                  if (j >= 0 && typeof ta2.setSelectionRange === 'function') {
+		                    try { ta2.setSelectionRange(j, j + needleLen); } catch { }
+		                  }
+		                  flashUiElement(ta2);
+		                }
+		              }
+		            }
+		          };
+
+		          // 1) Current memo textarea (in-progress / currently loaded)
+		          try {
+		            const ta = document.getElementById('typeMemo');
+		            const memoText = String(ta?.value || '');
+		            if (memoText && memoText.toLowerCase().includes(needleLower) && total < MAX_RESULTS) {
+		              const lower = memoText.toLowerCase();
+		              const idx = lower.indexOf(needleLower);
+		              const snippetSrc = idx >= 0
+		                ? memoText.slice(Math.max(0, idx - 80), Math.min(memoText.length, idx + needleLen + 80))
+		                : memoText.slice(0, 200);
+		              results.push({
+		                kind: 'memo',
+		                label: `현재 유형 · 유형 메모 · ${label}`,
+		                snippet: makeHighlightedSnippet(snippetSrc),
+		                actionText: '이동',
+		                onNav: () => openTypeMemoAndHighlight()
+		              });
+		              total++;
+		            }
+		          } catch { }
+
+		          // 2) Category memos for this type (stored chunks)
+		          try {
+		            if (label) {
+			              const key = 'fmm_type_memo_chunks_' + normalizeTitle(label).replace(/\s+/g, '_');
+		              const chunks = JSON.parse(store.getItem(key) || '[]');
+		              (Array.isArray(chunks) ? chunks : []).forEach(m => {
+		                if (total >= MAX_RESULTS) return;
+		                const content = String(m?.content || '');
+		                if (!content) return;
+		                const lower = content.toLowerCase();
+		                const idx = lower.indexOf(needleLower);
+		                if (idx < 0) return;
+		                const snippetSrc = content.slice(Math.max(0, idx - 80), Math.min(content.length, idx + needleLen + 80));
+		                const path = String(m?.categoryPath || '').trim();
+		                const title = String(m?.title || '').trim();
+		                results.push({
+		                  kind: 'memo_chunk',
+		                  label: `현재 유형 · 유형 메모 · ${label} · ${path ? path + '/' : ''}${title || '(제목 없음)'}`,
+		                  snippet: makeHighlightedSnippet(snippetSrc),
+		                  actionText: '이동',
+		                  onNav: () => openTypeMemoAndHighlight({ memoId: m?.id })
+		                });
+		                total++;
+		              });
+		            }
+		          } catch { }
 		        } else if (mode === 'problems') {
 		          const title = currentTypeTitle() || '';
 		          const pool = (currentTypeProblems() || []).map(applyProblemOverrides);
@@ -15375,7 +15574,9 @@
 	      }
 	      function refreshAfterPaperChange() {
 	        if (problems.json) {
-	          const changed = normalizeProblemsPaperNamesInPlace(problems.json);
+	          let changed = false;
+	          try { if (normalizeProblemsPaperNamesInPlace(problems.json)) changed = true; } catch { }
+	          try { if (migratePartSuffixQids()) changed = true; } catch { }
 	          if (changed) persistProblemsJson();
 	        }
 	        rebuildProblemIndexesFromJson();

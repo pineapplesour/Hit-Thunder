@@ -8164,7 +8164,7 @@ self.onmessage = (e) => {
 
         // Generate explanation for a subset of problems (used in split-merge mode)
 	        async function generateExplanationForSubset(patternName, standardProblem, problems, contextLabel, iterations) {
-	            const problemsText = problemsToText(problems);
+	            const problemsText = problemsToTextInterleaved(problems);
 	            const stdProblem = String(standardProblem?.problem || '').trim();
 	            const stdAnswer = String(standardProblem?.answer || '').trim();
 	            const language = __getGuideLanguageFromUi();
