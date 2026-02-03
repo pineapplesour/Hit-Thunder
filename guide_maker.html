@@ -816,6 +816,7 @@
 	                            <span class="material-symbols-outlined">folder_open</span>
 	                        </button>
                         <input type="file" id="load-progress-input" accept=".json" style="display: none;">
+                        <input type="file" id="subgroupify-save-input" accept=".json" style="display: none;">
 
 		                        <button id="clear-button" class="ui-btn" title="실험 초기화 (전체 삭제)" data-i18n-title="clearButtonTitle" data-i18n-aria-label="clearButtonTitle">
 	                            <span class="material-symbols-outlined">delete_forever</span>
@@ -911,6 +912,16 @@
 			                                기본값: 사용 안 함. 활성화 시 비용/용량이 증가할 수 있습니다.
 			                            </div>
 		                        </div>
+		                        <div class="input-group-tight" style="margin-top: 0.75rem;">
+		                            <label class="ui-label" id="phase1-subgrouping-label" data-i18n="phase1SubgroupingLabel">유형 내 소그룹 (실험)</label>
+		                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
+		                                <input type="checkbox" id="phase1-subgrouping-input">
+		                                <span id="phase1-subgrouping-text" data-i18n-html="phase1SubgroupingTextHtml">유형 내에서 “한 문장으로 같은 풀이가 가능한” 문제만 <code>subgroup_tag</code>로 묶기 (렌더러 유사도 그룹에 반영)</span>
+		                            </label>
+		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" id="phase1-subgrouping-help" data-i18n="phase1SubgroupingHelp">
+		                                기본값: 사용 안 함. 활성화 시 1단계 이후 추가 호출이 발생합니다.
+		                            </div>
+		                        </div>
 		                    </div>
 		                </details>
 
@@ -972,7 +983,16 @@
 	                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="chunkTokens1bHelp">
 	                                1단계B(유형분류) 배치 묶음에만 적용됩니다. (1단계A 유형표준 생성/검증과 분리)
 	                            </div>
-	                        </div>
+		                        </div>
+
+		                        <div class="input-group-tight">
+		                            <label for="subgrouping-chunk-tokens-input" class="ui-label" data-i18n="subgroupChunkTokensLabel">1단계: 소그룹 배치 토큰(대략)</label>
+		                            <input type="number" id="subgrouping-chunk-tokens-input" class="ui-input" min="1000" max="400000"
+		                                value="50000">
+		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="subgroupChunkTokensHelp">
+		                                소그룹 생성(유형 내 문제 묶기) 배치 묶음에만 적용됩니다.
+		                            </div>
+		                        </div>
 
 		                        <div class="input-group-tight">
 		                            <label for="tokenizer-mode-select" class="ui-label" data-i18n="tokenizerModeLabel">토크나이저 방식</label>
@@ -1320,6 +1340,10 @@
 	                            <textarea id="prompt-classifier-apply" class="ui-input" rows="5"></textarea>
 	                        </div>
 	                        <div class="input-group-tight">
+	                            <label for="prompt-subgroup-creator" class="ui-label" data-i18n="promptSubgroupCreatorLabel">2c. 소그룹 생성 프롬프트 (실험)</label>
+	                            <textarea id="prompt-subgroup-creator" class="ui-input" rows="5"></textarea>
+	                        </div>
+	                        <div class="input-group-tight">
 	                            <label for="prompt-standard-problem-creator" class="ui-label" data-i18n="promptStandardProblemCreatorLabel">3. 표준문제 생성 프롬프트</label>
 	                            <textarea id="prompt-standard-problem-creator" class="ui-input" rows="5"></textarea>
 	                        </div>
@@ -1650,7 +1674,7 @@
             runPlan: { startFrom: 'continue', stopAfter: 'phase3', resetCallCountersOnStart: false },
             runPhases: { phase0: true, phase1: true, phase2: true, phase3: true }, // derived from runPlan
 	            phase0: { pdfInputMode: 'multimodal', tesseractLang: 'kor+eng', experimentalImageCrops: false },
-            phase1: { archId: 'p1_coverage_style', chunkTokens: DEFAULT_CHUNK_TOKENS, chunkTokens1b: DEFAULT_CHUNK_TOKENS, chunkMode: 'file_first', maxTypes: 25, enableEvaluator: false, maxAttempts: 1, classificationMode: 'coverage', maxUnclassifiedRetries: 2 },
+            phase1: { archId: 'p1_coverage_style', chunkTokens: DEFAULT_CHUNK_TOKENS, chunkTokens1b: DEFAULT_CHUNK_TOKENS, chunkMode: 'file_first', maxTypes: 25, enableEvaluator: false, maxAttempts: 1, classificationMode: 'coverage', maxUnclassifiedRetries: 2, subgrouping: { enabled: false, chunkTokens: DEFAULT_CHUNK_TOKENS } },
             phase2: {
                 archId: 'p2_integrated_creator_patch',
                 enableAuditor: false,
@@ -1745,6 +1769,13 @@
             if (Number.isFinite(cfg?.phase1?.chunkTokens1b)) base.phase1.chunkTokens1b = cfg.phase1.chunkTokens1b;
             // Backward-compat: if chunkTokens1b is missing, default to the Phase 1A chunk tokens.
             if (!Number.isFinite(base.phase1.chunkTokens1b)) base.phase1.chunkTokens1b = base.phase1.chunkTokens;
+            // Phase1 subgrouping (experimental)
+            base.phase1.subgrouping = {
+                enabled: !!(cfg?.phase1?.subgrouping?.enabled ?? false),
+                chunkTokens: Number.isFinite(cfg?.phase1?.subgrouping?.chunkTokens)
+                    ? cfg.phase1.subgrouping.chunkTokens
+                    : base.phase1.chunkTokens1b,
+            };
             const p1Arch = String(cfg?.phase1?.archId || '').trim();
             if (PHASE1_ARCH_DEFINITIONS.some(d => d?.id === p1Arch)) base.phase1.archId = p1Arch;
             else base.phase1.archId = (cfg?.phase1?.enableEvaluator === false) ? 'p1_no_eval' : 'p1_default';
@@ -1848,6 +1879,14 @@
 
             cfg.phase1.chunkTokens = chunkTokens;
             cfg.phase1.chunkTokens1b = chunkTokens1b;
+            cfg.phase1.subgrouping = {
+                enabled: __getBoolFromUi('phase1-subgrouping-input', false),
+                chunkTokens: __clampInt(__getStrFromUi('subgrouping-chunk-tokens-input', chunkTokens1b), {
+                    min: 1000,
+                    max: 400000,
+                    fallback: chunkTokens1b,
+                }),
+            };
             cfg.phase1.chunkMode = (__getStrFromUi('chunk-mode-select', 'file_first') || 'file_first').trim() || 'file_first';
             cfg.phase1.maxTypes = __clampInt(__getStrFromUi('max-types-input', 25), { min: 5, max: 100, fallback: 25 });
             cfg.phase1.archId = (__getStrFromUi('phase1-arch-select', 'p1_coverage_style') || 'p1_coverage_style').trim() || 'p1_coverage_style';
@@ -1913,6 +1952,8 @@
 
                 setVal('chunk-tokens-input', c.phase1?.chunkTokens ?? DEFAULT_CHUNK_TOKENS);
                 setVal('chunk-tokens-1b-input', c.phase1?.chunkTokens1b ?? c.phase1?.chunkTokens ?? DEFAULT_CHUNK_TOKENS);
+                setChk('phase1-subgrouping-input', c.phase1?.subgrouping?.enabled ?? false);
+                setVal('subgrouping-chunk-tokens-input', c.phase1?.subgrouping?.chunkTokens ?? c.phase1?.chunkTokens1b ?? c.phase1?.chunkTokens ?? DEFAULT_CHUNK_TOKENS);
                 setVal('chunk-mode-select', c.phase1?.chunkMode ?? 'file_first');
                 setVal('max-types-input', c.phase1?.maxTypes ?? 25);
                 setVal('phase1-arch-select', c.phase1?.archId ?? 'p1_coverage_style');
@@ -2745,6 +2786,7 @@
                 'p1_eval_types',
                 'p1_merge',
                 'p1_classify_batch',
+                'p1_subgroup',
                 'p2_std_problem',
                 'p2_explanation',
                 'p2_auditor',
@@ -2761,6 +2803,7 @@
                 p1_eval_types: 'callStatsStageP1EvalTypes',
                 p1_merge: 'callStatsStageP1Merge',
                 p1_classify_batch: 'callStatsStageP1ClassifyBatch',
+                p1_subgroup: 'callStatsStageP1Subgroup',
                 p2_std_problem: 'callStatsStageP2StdProblem',
                 p2_explanation: 'callStatsStageP2Explanation',
                 p2_auditor: 'callStatsStageP2Auditor',
@@ -2817,6 +2860,8 @@
                 if (c.startsWith('evaltypes')) return 'p1_eval_types';
                 if (c.startsWith('merge-')) return 'p1_merge';
                 if (c.startsWith('classifybatch')) return 'p1_classify_batch';
+                if (c.startsWith('subgroupbatch')) return 'p1_subgroup';
+                if (c.startsWith('subgroupifysavebatch')) return 'p1_subgroup';
 
                 if (/-coverage\d+-w\d+$/i.test(base)) return 'p2_coverage_verify';
                 if (/-patch$/i.test(base)) return 'p2_coverage_patch';
@@ -7475,6 +7520,49 @@ SUBGROUP RULES (optional):
 
 Classify ALL provided problems. Use ONLY type names from the provided standard.`
             },
+            subgroup_creator: {
+                system:
+                    `You are the Subgrouping Agent.
+
+You will receive one or more pattern types. Each type includes a list of problems (qid + short text).
+
+Your job: find OPTIONAL subgroups WITHIN each type.
+
+SUBGROUP DEFINITION (STRICT):
+- A subgroup must contain 2+ problems.
+- All problems in a subgroup must share essentially the same solution logic — so similar that you can describe the solving method in ONE identical sentence for all of them.
+- Be conservative: only create a subgroup if you are very confident the one-sentence rule fits ALL problems in that subgroup.
+- Do NOT force grouping. It is OK if a type has no subgroups.
+- Subgroups must NEVER cross different <type_name>.
+- Each qid can appear in at most one subgroup.
+
+LANGUAGE REQUIREMENT:
+- Write <subgroup_rule> in {language}.
+
+OUTPUT FORMAT:
+<data>
+  <item>
+    <id>1</id>
+    <type_name>Exact type name as provided</type_name>
+    <none>true</none>
+  </item>
+  <item>
+    <id>2</id>
+    <type_name>Exact type name as provided</type_name>
+    <subgroup_rule>ONE sentence rule of thumb</subgroup_rule>
+    <qids>GLOBAL_QID_1
+GLOBAL_QID_2
+...</qids>
+  </item>
+  ...
+</data>
+
+RULES:
+- If a type has NO subgroups, output exactly ONE item for that type with <none>true</none>.
+- If a type has one or more subgroups, output ONE item per subgroup and do NOT output <none>true</none> for that type.
+- Use only qids that appear in the input, and copy them exactly.
+- No commentary outside <data>...</data>.`
+            },
 	            standard_problem_creator: {
 	                system:
 	                    `You are the Standard Problem Creator.
@@ -10068,6 +10156,26 @@ ${chunkText}
             const rebuilt = buildPatternClusters(p1_state.perQuestion);
             p1_state.perQuestion = rebuilt.perQuestion;
             p1_state.clusters = rebuilt.clusters;
+
+            // --- Phase 1 (experimental): subgrouping within each type ---
+            const sgCfg = (() => { try { return getPipelineConfig()?.phase1?.subgrouping || {}; } catch { return {}; } })();
+            if (sgCfg?.enabled) {
+                try {
+                    p1_state.subgrouping = p1_state.subgrouping && typeof p1_state.subgrouping === 'object' ? p1_state.subgrouping : {};
+                    p1_state.subgrouping.status = 'processing';
+                    p1_state.subgrouping.error = null;
+                    renderActiveProcess();
+                    await runPhase1SubgroupingFromClusters(p1_state, { chunkTokens: sgCfg?.chunkTokens });
+                    p1_state.subgrouping.status = 'completed';
+                    p1_state.subgrouping.completedAt = new Date().toISOString();
+                } catch (e) {
+                    p1_state.subgrouping = p1_state.subgrouping && typeof p1_state.subgrouping === 'object' ? p1_state.subgrouping : {};
+                    p1_state.subgrouping.status = 'error';
+                    p1_state.subgrouping.error = e?.message || String(e || '');
+                    logger.warn("Phase1Subgroup", `Subgrouping failed: ${p1_state.subgrouping.error}`);
+                }
+            }
+
             p1_state.status = 'completed';
 
             if (!activeProcess.phase2_modules || activeProcess.phase2_modules.length === 0) {
@@ -10101,6 +10209,358 @@ ${chunkText}
                 `유형분류 완료: ${p1_state.perQuestion.length}개 문제 → ${p1_state.clusters.length}개 유형` +
                 (unclassifiedCount > 0 ? ` (미분류: ${unclassifiedCount}개)` : '')
             );
+            renderActiveProcess();
+        }
+
+        // ----- PHASE 1 (experimental): Subgrouping within types -----
+        function __subgroupingStripDataUris(text) {
+            let s = String(text ?? '');
+            // Remove markdown images with data URIs (can be huge)
+            s = s.replace(/!\[[^\]]*]\(data:[^)]+\)/gi, '[image]');
+            // Remove HTML data-uri images
+            s = s.replace(/<\s*img\b[^>]*\bsrc\s*=\s*["']data:[^"']+["'][^>]*>/gi, '[image]');
+            // Remove raw data:image base64 blobs that may appear inline
+            s = s.replace(/data:image\/[^;\s]+;base64,[a-z0-9+/=]+/gi, '[image]');
+            return s;
+        }
+
+        function __subgroupingClipText(text, maxChars) {
+            const s = String(text ?? '').trim();
+            const lim = Math.max(0, Number(maxChars || 0) || 0);
+            if (!lim || s.length <= lim) return s;
+            return s.slice(0, lim).trim() + '…';
+        }
+
+        function __subgroupingNormalizeSignatureText(text) {
+            let s = __subgroupingStripDataUris(text);
+            s = String(s ?? '').toLowerCase();
+            s = s.replace(/\d+/g, '#');
+            s = s.replace(/[^a-z0-9가-힣#]+/gi, ' ');
+            s = s.replace(/\s+/g, ' ').trim();
+            return s;
+        }
+
+        function __subgroupingSignatureForProblem(p) {
+            const q = String(p?.question_text || '');
+            const c = String(p?.answer_choices || '');
+            const s = __subgroupingNormalizeSignatureText(`${q}\n${c}`);
+            const parts = s.split(/\s+/).filter(Boolean);
+            const uniq = Array.from(new Set(parts.filter(x => String(x).length >= 2)));
+            uniq.sort();
+            return uniq.slice(0, 30).join('|');
+        }
+
+        function __buildSubgroupingProblemBlock(problem, limits) {
+            const qid = String(problem?.qid || '').trim();
+            const maxQ = Number.isFinite(limits?.maxQuestionChars) ? limits.maxQuestionChars : 900;
+            const maxC = Number.isFinite(limits?.maxChoicesChars) ? limits.maxChoicesChars : 250;
+            const qTextRaw = __subgroupingStripDataUris(problem?.question_text || '');
+            const cTextRaw = __subgroupingStripDataUris(problem?.answer_choices || '');
+            const qText = __subgroupingClipText(qTextRaw, maxQ);
+            const cText = __subgroupingClipText(cTextRaw, maxC);
+            const lines = [];
+            lines.push(`QID: ${qid}`);
+            if (qText) lines.push(`Q: ${qText}`);
+            if (cText) lines.push(`Choices: ${cText}`);
+            return lines.join('\n').trim();
+        }
+
+        function __buildSubgroupingTypeUnitText(typeName, problems, limits) {
+            const name = String(typeName || '').trim();
+            const items = (problems || []).map(p => __buildSubgroupingProblemBlock(p, limits)).filter(Boolean);
+            return `TYPE: ${name}\n\n${items.join('\n\n---\n\n')}`.trim();
+        }
+
+        function __parseQidsFromText(raw) {
+            const s = String(raw || '').trim();
+            if (!s) return [];
+            const parts = s.split(/[\s,]+/).map(x => String(x || '').trim()).filter(Boolean);
+            const out = [];
+            for (const p of parts) {
+                const t = p.replace(/^[-*•\s]+/, '').trim();
+                if (t) out.push(t);
+            }
+            return Array.from(new Set(out));
+        }
+
+        function __buildSubgroupingUnitsForType(typeName, problems, { maxTokens } = {}) {
+            const maxT = __clampInt(maxTokens ?? DEFAULT_CHUNK_TOKENS, { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS });
+            const arr = Array.isArray(problems) ? problems.slice() : [];
+            if (arr.length < 2) return [];
+
+            // Start with moderately compact per-problem excerpts to avoid huge prompts (esp. data-URI crops).
+            let limits = { maxQuestionChars: 900, maxChoicesChars: 250 };
+            let fullText = __buildSubgroupingTypeUnitText(typeName, arr, limits);
+            let fullTokens = __estimateTokens(fullText);
+
+            // If too big, shrink excerpts before splitting.
+            while (fullTokens > maxT && limits.maxQuestionChars > 240) {
+                limits = {
+                    maxQuestionChars: Math.max(240, Math.floor(limits.maxQuestionChars * 0.75)),
+                    maxChoicesChars: Math.max(80, Math.floor(limits.maxChoicesChars * 0.75)),
+                };
+                fullText = __buildSubgroupingTypeUnitText(typeName, arr, limits);
+                fullTokens = __estimateTokens(fullText);
+            }
+
+            if (fullTokens <= maxT) {
+                return [{
+                    typeName: String(typeName || '').trim(),
+                    unitId: `${String(typeName || '').trim()}::1`,
+                    qids: arr.map(p => String(p?.qid || '').trim()).filter(Boolean),
+                    userText: fullText,
+                    estTokens: fullTokens,
+                }];
+            }
+
+            // Still too big: split within the type. Order by loose "code" similarity to avoid splitting near-identical families.
+            const ordered = arr
+                .map(p => ({ p, sig: __subgroupingSignatureForProblem(p) }))
+                .sort((a, b) => String(a.sig).localeCompare(String(b.sig), 'en'))
+                .map(x => x.p);
+
+            // Estimate per-problem tokens using the current (shrunk) limits
+            const headerTokens = __estimateTokens(`TYPE: ${String(typeName || '').trim()}\n\n`);
+            const blocks = ordered.map(p => __buildSubgroupingProblemBlock(p, limits));
+            const blockTokens = blocks.map(t => __estimateTokens(t) + 8); // include separators/overhead
+
+            const chunks = [];
+            let cur = [];
+            let curTok = headerTokens;
+            for (let i = 0; i < ordered.length; i++) {
+                const p = ordered[i];
+                const tok = blockTokens[i] || 0;
+                if (cur.length > 0 && curTok + tok > maxT) {
+                    chunks.push(cur);
+                    cur = [];
+                    curTok = headerTokens;
+                }
+                cur.push(p);
+                curTok += tok;
+            }
+            if (cur.length) chunks.push(cur);
+
+            const units = chunks
+                .map((ps, idx) => {
+                    if (!Array.isArray(ps) || ps.length < 2) return null; // cannot form a subgroup
+                    const t = __buildSubgroupingTypeUnitText(typeName, ps, limits);
+                    return {
+                        typeName: String(typeName || '').trim(),
+                        unitId: `${String(typeName || '').trim()}::${idx + 1}`,
+                        qids: ps.map(p => String(p?.qid || '').trim()).filter(Boolean),
+                        userText: t,
+                        estTokens: __estimateTokens(t),
+                    };
+                })
+                .filter(Boolean);
+            return units;
+        }
+
+        function __packSubgroupingUnits(units, maxTokens) {
+            const maxT = __clampInt(maxTokens ?? DEFAULT_CHUNK_TOKENS, { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS });
+            const sep = '\n\n====================\n\n';
+            const sepTok = __estimateTokens(sep);
+            const sorted = (units || []).slice().sort((a, b) => (b.estTokens || 0) - (a.estTokens || 0));
+
+            const batches = [];
+            for (const u of sorted) {
+                if (!u || !u.userText) continue;
+                const ut = Math.max(0, Number(u.estTokens || 0) || 0);
+                if (ut > maxT) {
+                    // Shouldn't happen (we split earlier), but guard anyway.
+                    batches.push({ units: [u] });
+                    continue;
+                }
+                let placed = false;
+                for (const b of batches) {
+                    if (!b || !Array.isArray(b.units)) continue;
+                    b.__typeNames ||= new Set();
+                    b.__est ||= 0;
+                    if (b.__typeNames.has(u.typeName)) continue; // avoid same type twice in one request
+                    const nextN = b.units.length + 1;
+                    const nextTok = b.__est + ut + (b.units.length ? sepTok : 0);
+                    if (nextTok <= maxT) {
+                        b.units.push(u);
+                        b.__typeNames.add(u.typeName);
+                        b.__est = nextTok;
+                        placed = true;
+                        break;
+                    }
+                }
+                if (!placed) {
+                    const b = { units: [u] };
+                    b.__typeNames = new Set([u.typeName]);
+                    b.__est = ut;
+                    batches.push(b);
+                }
+            }
+            // strip private fields
+            return batches.map(b => ({ units: (b.units || []).slice() }));
+        }
+
+        async function subgroupifyTypeProblemMap(typeToProblems, { chunkTokens, language, contextPrefix = 'SubgroupBatch' } = {}) {
+            const typesObj = (typeToProblems && typeof typeToProblems === 'object') ? typeToProblems : {};
+            const typeNames = Object.keys(typesObj);
+            const normalizedToType = new Map(typeNames.map(t => [__normalizeTitleForMatch(t), t]));
+            const qidSetByType = new Map();
+            typeNames.forEach(t => {
+                const list = Array.isArray(typesObj[t]) ? typesObj[t] : [];
+                const qids = list.map(p => String(p?.qid || '').trim()).filter(Boolean);
+                qidSetByType.set(t, new Set(qids));
+            });
+
+            const maxT = __clampInt(chunkTokens ?? (getPipelineConfig()?.phase1?.subgrouping?.chunkTokens ?? DEFAULT_CHUNK_TOKENS), { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS });
+            const lang = String(language || __getGuideLanguageFromUi() || 'English').trim() || 'English';
+
+            // Build per-type units (avoid per-question output; group-level only)
+            const allUnits = [];
+            for (const typeName of typeNames) {
+                const probs = Array.isArray(typesObj[typeName]) ? typesObj[typeName] : [];
+                const units = __buildSubgroupingUnitsForType(typeName, probs, { maxTokens: maxT });
+                units.forEach(u => allUnits.push(u));
+            }
+            if (!allUnits.length) {
+                return { assignmentsByQid: new Map(), groupsByType: new Map() };
+            }
+
+            const batches = __packSubgroupingUnits(allUnits, maxT);
+
+            const groupsByType = new Map(); // typeName -> [{ rule, qids[] }]
+            const observedTypes = new Set();
+            const processedUnits = new Set();
+
+            async function processBatch(batch, workerId) {
+                const ctx = `${contextPrefix}-W${workerId}`;
+                const units = (batch && Array.isArray(batch.units)) ? batch.units : [];
+                if (!units.length) return;
+                units.forEach(u => {
+                    if (u?.typeName) observedTypes.add(u.typeName);
+                    if (u?.unitId) processedUnits.add(u.unitId);
+                });
+                const userText = units.map(u => u.userText).join('\n\n====================\n\n');
+                const payload = {
+                    model: getApiConfig().model,
+                    messages: [
+                        { role: 'system', content: __renderPromptTemplateText(currentPrompts.subgroup_creator.system, { language: lang }) },
+                        { role: 'user', content: userText }
+                    ]
+                };
+                const items = await requestAndParseDataEnvelope(payload, ctx, { phase: 'phase1b' });
+                items.forEach(it => {
+                    const v = String(it?.value || '');
+                    const typeRaw = String(parseTag(v, 'type_name') || '').trim();
+                    if (!typeRaw) return;
+                    const typeName = normalizedToType.get(__normalizeTitleForMatch(typeRaw)) || typeRaw;
+                    if (!qidSetByType.has(typeName)) return;
+
+                    const noneRaw = String(parseTag(v, 'none') || '').trim().toLowerCase();
+                    const isNone = ['true', 'yes', 'y', '1', 'none'].includes(noneRaw);
+                    if (isNone) return;
+
+                    const rule = String(parseTag(v, 'subgroup_rule') || '').trim();
+                    const qids = __parseQidsFromText(parseTag(v, 'qids') || '');
+                    if (!qids.length) return;
+                    const allowed = qidSetByType.get(typeName) || new Set();
+                    const filtered = qids.filter(qid => allowed.has(qid));
+                    const uniq = Array.from(new Set(filtered));
+                    if (uniq.length < 2) return;
+                    if (!groupsByType.has(typeName)) groupsByType.set(typeName, []);
+                    groupsByType.get(typeName).push({ rule, qids: uniq });
+                });
+            }
+
+            await runWithConcurrency(batches, processBatch, getWorkerConcurrency());
+
+            // Post-process: ensure each qid appears in at most one subgroup per type; assign stable tags.
+            const assignmentsByQid = new Map(); // qid -> { typeName, tag, rule }
+            groupsByType.forEach((groups, typeName) => {
+                const list = Array.isArray(groups) ? groups.slice() : [];
+                list.sort((a, b) => {
+                    const na = Array.isArray(a?.qids) ? a.qids.length : 0;
+                    const nb = Array.isArray(b?.qids) ? b.qids.length : 0;
+                    if (nb !== na) return nb - na;
+                    return String(a?.rule || '').localeCompare(String(b?.rule || ''), 'en');
+                });
+                const seen = new Set();
+                const kept = [];
+                list.forEach(g => {
+                    const qids = Array.isArray(g?.qids) ? g.qids.slice() : [];
+                    const uniq = qids.filter(qid => qid && !seen.has(qid));
+                    if (uniq.length < 2) return;
+                    uniq.forEach(qid => seen.add(qid));
+                    kept.push({ rule: String(g?.rule || '').trim(), qids: uniq });
+                });
+                groupsByType.set(typeName, kept);
+
+                kept.forEach((g, idx) => {
+                    const tag = `sg${String(idx + 1).padStart(2, '0')}`;
+                    g.qids.forEach(qid => {
+                        assignmentsByQid.set(qid, { typeName, tag, rule: g.rule });
+                    });
+                });
+            });
+
+            return { assignmentsByQid, groupsByType, meta: { processedUnits: processedUnits.size, typesObserved: observedTypes.size, maxTokens: maxT } };
+        }
+
+        async function runPhase1SubgroupingFromClusters(p1_state, { chunkTokens } = {}) {
+            const p1 = p1_state || activeProcess?.phase1_patterns;
+            if (!p1) throw new Error('Phase1 state not found.');
+            const clusters = Array.isArray(p1?.clusters) ? p1.clusters : [];
+            const perQ = Array.isArray(p1?.perQuestion) ? p1.perQuestion : [];
+            if (!clusters.length || !perQ.length) throw new Error('No Phase1 clusters/perQuestion available.');
+
+            const all = collectAllQuestions();
+            const byQid = new Map(all.map(q => [String(q.qid || '').trim(), q]));
+
+            const typeToProblems = {};
+            const missing = [];
+            clusters.forEach(cl => {
+                const typeName = String(cl?.pattern_name || '').trim();
+                const qids = Array.isArray(cl?.qids) ? cl.qids : [];
+                const probs = [];
+                qids.forEach(qid => {
+                    const q = byQid.get(String(qid || '').trim());
+                    if (q) probs.push(q);
+                    else missing.push(qid);
+                });
+                typeToProblems[typeName] = probs;
+            });
+            if (missing.length) logger.warn('Phase1Subgroup', `Missing ${missing.length} qid(s) while building subgrouping input (sample: ${missing.slice(0, 3).join(', ')})`);
+
+            const res = await subgroupifyTypeProblemMap(typeToProblems, {
+                chunkTokens,
+                language: __getGuideLanguageFromUi(),
+                contextPrefix: 'SubgroupBatch',
+            });
+
+            const map = res?.assignmentsByQid instanceof Map ? res.assignmentsByQid : new Map();
+
+            let assigned = 0;
+            perQ.forEach(pq => {
+                const qid = String(pq?.qid || '').trim();
+                const a = map.get(qid) || null;
+                pq.subgroup_tag = a ? a.tag : '';
+                pq.subgroup_rule = a ? (a.rule || '') : '';
+                if (a) assigned++;
+            });
+
+            try {
+                p1.subgrouping = p1.subgrouping && typeof p1.subgrouping === 'object' ? p1.subgrouping : {};
+                p1.subgrouping.assigned = assigned;
+                p1.subgrouping.groups = (() => {
+                    try {
+                        let n = 0;
+                        (res?.groupsByType || new Map()).forEach(gs => { n += Array.isArray(gs) ? gs.length : 0; });
+                        return n;
+                    } catch { return 0; }
+                })();
+                p1.subgrouping.types = (res?.groupsByType && typeof res.groupsByType.forEach === 'function')
+                    ? Array.from(res.groupsByType.keys()).length
+                    : 0;
+            } catch { }
+
+            logger.success('Phase1Subgroup', `Subgrouping applied: assigned ${assigned} problem(s) to subgroup tags.`);
             renderActiveProcess();
         }
 
@@ -11642,9 +12102,15 @@ ${explanationWithGlobal}
                       ${pat.error ? `<p style="color: var(--error-color);">${escapeHtmlForInnerHTML(pat.error)}</p>` : ''}
                       ${standardDetails}
                       ${perChunkDetails}
-                      <div style="margin:0.5rem 0;">
+                      <div style="margin:0.5rem 0; display:flex; gap:8px; flex-wrap:wrap;">
 			                        <button class="ui-btn" id="download-type-bundle-btn" ${!((activeProcess.phase1_patterns?.perQuestion || []).length) ? 'disabled' : ''}>
 			                          ${escapeHtmlForInnerHTML(__tGui('p1TypeBundleDownloadButton'))}
+			                        </button>
+			                        <button class="ui-btn" id="run-subgrouping-btn" ${!((activeProcess.phase1_patterns?.perQuestion || []).length) ? 'disabled' : ''}>
+			                          ${escapeHtmlForInnerHTML(__tGui('p1RunSubgroupingButton'))}
+			                        </button>
+			                        <button class="ui-btn" id="subgroupify-save-btn">
+			                          ${escapeHtmlForInnerHTML(__tGui('p1SubgroupifySaveButton'))}
 			                        </button>
                       </div>
                       <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:1rem;">
@@ -11892,6 +12358,128 @@ ${explanationWithGlobal}
             }
         });
 
+        // Phase1: manual subgrouping run (without re-running classification)
+        document.body.addEventListener('click', async (e) => {
+            if (!e.target || e.target.id !== 'run-subgrouping-btn') return;
+            try {
+                const p1 = activeProcess?.phase1_patterns || null;
+                if (!p1 || !(Array.isArray(p1?.perQuestion) && p1.perQuestion.length) || !(Array.isArray(p1?.clusters) && p1.clusters.length)) {
+                    alert(__tGui('exportNoTypeResultsError'));
+                    return;
+                }
+                const st = String(p1?.subgrouping?.status || '').toLowerCase();
+                if (st === 'processing' || st === 'in_progress' || st === 'running') {
+                    logger.warn('Phase1Subgroup', 'Subgrouping is already running.');
+                    return;
+                }
+                const sgCfg = (() => {
+                    try { return getPipelineConfig(activeProcess)?.phase1?.subgrouping || getPipelineConfigFromUi()?.phase1?.subgrouping || {}; } catch { return {}; }
+                })();
+                p1.subgrouping = p1.subgrouping && typeof p1.subgrouping === 'object' ? p1.subgrouping : {};
+                p1.subgrouping.status = 'processing';
+                p1.subgrouping.error = null;
+                renderActiveProcess();
+                await runPhase1SubgroupingFromClusters(p1, { chunkTokens: sgCfg?.chunkTokens });
+                p1.subgrouping.status = 'completed';
+                p1.subgrouping.completedAt = new Date().toISOString();
+                renderActiveProcess();
+            } catch (err) {
+                const msg = err?.message || String(err || '');
+                try {
+                    activeProcess.phase1_patterns.subgrouping = activeProcess.phase1_patterns.subgrouping && typeof activeProcess.phase1_patterns.subgrouping === 'object'
+                        ? activeProcess.phase1_patterns.subgrouping
+                        : {};
+                    activeProcess.phase1_patterns.subgrouping.status = 'error';
+                    activeProcess.phase1_patterns.subgrouping.error = msg;
+                } catch { }
+                logger.error('Phase1Subgroup', `Failed to run subgrouping: ${msg}`);
+                alert(__tGui('exportFailedCheckLogsAlert'));
+                renderActiveProcess();
+            }
+        });
+
+        // Phase1 tool: subgroupify an existing renderer save (.json)
+        document.body.addEventListener('click', (e) => {
+            if (!e.target || e.target.id !== 'subgroupify-save-btn') return;
+            const input = getEl('subgroupify-save-input');
+            if (input) input.click();
+        });
+
+        function __downloadJsonFile(filename, obj) {
+            const jsonString = JSON.stringify(obj, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.download = filename;
+            a.href = URL.createObjectURL(blob);
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        function __extractTypesFromImportedSave(obj) {
+            if (!obj || typeof obj !== 'object') throw new Error('JSON root is not an object.');
+            // Preferred: fmm_export bundle
+            if (obj.__fmm_bundle__ === 1 && obj.items && obj.items.fmm_problems_json && obj.items.fmm_problems_json.value) {
+                const v = obj.items.fmm_problems_json.value;
+                if (v && typeof v === 'object' && v.types && typeof v.types === 'object' && !Array.isArray(v.types)) {
+                    return { kind: 'bundle', root: obj, types: v.types };
+                }
+            }
+            // Fallback: plain { types: { ... } }
+            if (obj.types && typeof obj.types === 'object' && !Array.isArray(obj.types)) {
+                return { kind: 'types', root: obj, types: obj.types };
+            }
+            throw new Error('Unsupported file. Expected fmm_export bundle (__fmm_bundle__==1) or {types:{...}} JSON.');
+        }
+
+        async function subgroupifyImportedSaveObject(obj, { chunkTokens } = {}) {
+            const cloned = __deepClone(obj);
+            const extracted = __extractTypesFromImportedSave(cloned);
+            const types = extracted.types;
+            const typeNames = Object.keys(types || {});
+            if (!typeNames.length) throw new Error('No types found in save file.');
+
+            // Normalize problem fields for subgrouping input only (preserve original objects for output).
+            const inputMap = {};
+            for (const [typeName, listRaw] of Object.entries(types || {})) {
+                const list = Array.isArray(listRaw) ? listRaw : [];
+                inputMap[typeName] = list.map(p => ({
+                    qid: String(p?.qid || '').trim(),
+                    question_text: String(p?.question_text ?? p?.questionText ?? p?.question ?? ''),
+                    answer_choices: String(p?.answer_choices ?? p?.answerChoices ?? p?.choices ?? ''),
+                })).filter(p => p.qid);
+            }
+
+            const sgCfg = (() => {
+                try { return getPipelineConfigFromUi()?.phase1?.subgrouping || {}; } catch { return {}; }
+            })();
+            const res = await subgroupifyTypeProblemMap(inputMap, {
+                chunkTokens: chunkTokens ?? sgCfg?.chunkTokens,
+                language: __getGuideLanguageFromUi(),
+                contextPrefix: 'SubgroupifySaveBatch',
+            });
+
+            const map = res?.assignmentsByQid instanceof Map ? res.assignmentsByQid : new Map();
+            let assigned = 0;
+            for (const [typeName, listRaw] of Object.entries(types || {})) {
+                const list = Array.isArray(listRaw) ? listRaw : [];
+                list.forEach(p => {
+                    const qid = String(p?.qid || '').trim();
+                    const a = qid ? map.get(qid) : null;
+                    if (a) {
+                        p.subgroup_tag = a.tag;
+                        if (a.rule) p.subgroup_rule = a.rule;
+                        assigned++;
+                    } else {
+                        try { delete p.subgroup_tag; } catch { }
+                        try { delete p.subgroup_rule; } catch { }
+                    }
+                });
+            }
+
+            logger.success('SubgroupifySave', `Updated save file: assigned ${assigned} problem(s) to subgroup tags.`);
+            return { updated: cloned, assigned };
+        }
+
         function __buildTypeProblemsBundleForExport() {
             const perQ = activeProcess?.phase1_patterns?.perQuestion || [];
             if (!perQ.length) throw new Error(__tGui('exportNoTypeResultsError'));
@@ -11905,6 +12493,7 @@ ${explanationWithGlobal}
                 const qid = pq?.qid;
                 const pattern_name = pq?.pattern_name;
                 const subgroupTag = String(pq?.subgroup_tag || '').trim();
+                const subgroupRule = String(pq?.subgroup_rule || '').trim();
                 const q = byId.get(qid);
                 if (!q) { missingQids.push(qid); return; }
                 const finalTypeName = globalTypeNameMap?.[pattern_name] || pattern_name;
@@ -11917,6 +12506,7 @@ ${explanationWithGlobal}
                     official_explanation: q.official_explanation || null
                 };
                 if (subgroupTag) item.subgroup_tag = subgroupTag;
+                if (subgroupTag && subgroupRule) item.subgroup_rule = subgroupRule;
                 (types[finalTypeName] ||= []).push(item);
             });
             return { types, missingQids, phase1: p1 };
@@ -12397,6 +12987,7 @@ ${explanationWithGlobal}
 		                callStatsStageP1EvalTypes: 'P1A Verify',
 		                callStatsStageP1Merge: 'P1 Merge',
 		                callStatsStageP1ClassifyBatch: 'P1B Classify',
+		                callStatsStageP1Subgroup: 'P1 Subgroup',
 		                callStatsStageP2StdProblem: 'P2 Standard problem',
 		                callStatsStageP2Explanation: 'P2 Explanation',
 		                callStatsStageP2Auditor: 'P2 Auditor',
@@ -12445,6 +13036,8 @@ ${explanationWithGlobal}
 	                p1ClustersTitle: 'Type classification results (clusters)',
 	                p1PerChunkVerifyFmt: 'Per-chunk verification ({n})',
 	                p1TypeBundleDownloadButton: 'Download types + original problems (.json)',
+	                p1RunSubgroupingButton: 'Run subgrouping (experimental)',
+	                p1SubgroupifySaveButton: 'Subgroupify existing save (.json)',
 
 	                p2ProgressSummaryTitle: 'Progress summary',
 	                p2ProgressTotalFmt: 'Total {n}',
@@ -12495,6 +13088,9 @@ ${explanationWithGlobal}
 	                phase0ImageCropsLabel: 'Figure/Diagram Crops (optional)',
 	                phase0ImageCropsTextHtml: 'For questions with figures/diagrams: prepend image crops to <code>question_text</code> as <code>![img](data:...)</code>',
 	                phase0ImageCropsHelp: 'Default: off. Enabling can increase cost/file size.',
+	                phase1SubgroupingLabel: 'Subgroups within types (experimental)',
+	                phase1SubgroupingTextHtml: 'Within each type: group only the problems that share an identical one-sentence solving rule using <code>subgroup_tag</code> (affects renderer similarity groups)',
+	                phase1SubgroupingHelp: 'Default: off. Enabling adds extra calls after Phase 1.',
 	
 	                runPlanLabel: 'Run plan',
 	                runStartFromLabel: 'Restart point (applies once)',
@@ -12515,6 +13111,8 @@ ${explanationWithGlobal}
 	                chunkTokensHelp: 'Larger chunks reduce calls but increase prompt size.',
 	                chunkTokens1bLabel: 'Phase 1B: Classification batch tokens (approx.)',
 	                chunkTokens1bHelp: 'Applies only to Phase 1B (type classification) batching. (Separate from Phase 1A type standard generation/verification.)',
+	                subgroupChunkTokensLabel: 'Phase 1: Subgrouping batch tokens (approx.)',
+	                subgroupChunkTokensHelp: 'Applies only to Phase 1 subgrouping (within-type grouping) batching.',
 	                tokenizerModeLabel: 'Tokenizer mode',
 	                tokenizerModeCharEstimate: 'Char estimate (len÷4, fastest)',
 	                tokenizerModeCharEstimate3: 'Char estimate (len÷3, conservative)',
@@ -12647,6 +13245,7 @@ ${explanationWithGlobal}
 	                promptClassifierStandardLabel: '2a. Type standard creation prompt',
 	                promptClassifierStandardVerifierLabel: '2a-Verify. Type standard evaluation prompt',
 	                promptClassifierApplyLabel: '2b. Type classification apply prompt',
+	                promptSubgroupCreatorLabel: '2c. Subgroup creation prompt (experimental)',
 	                promptStandardProblemCreatorLabel: '3. Standard problem creation prompt',
 	                promptExplanationCreatorLabel: '4. Explanation creation prompt',
 	                promptExplanationFeedbackLabel: '5. Audit/feedback prompt',
@@ -12710,6 +13309,7 @@ ${explanationWithGlobal}
 		                callStatsStageP1EvalTypes: '1단계A 검증',
 		                callStatsStageP1Merge: '1단계 통합',
 		                callStatsStageP1ClassifyBatch: '1단계B 분류',
+		                callStatsStageP1Subgroup: '1단계 소그룹',
 		                callStatsStageP2StdProblem: '2단계 표준문제',
 		                callStatsStageP2Explanation: '2단계 해설',
 		                callStatsStageP2Auditor: '2단계 감사',
@@ -12758,6 +13358,8 @@ ${explanationWithGlobal}
 	                p1ClustersTitle: '유형분류 결과(클러스터)',
 	                p1PerChunkVerifyFmt: '청크별 검증 ({n}개)',
 	                p1TypeBundleDownloadButton: '유형별 분류 결과 + 문제 원문 다운로드 (.json)',
+	                p1RunSubgroupingButton: '소그룹 생성 실행 (실험)',
+	                p1SubgroupifySaveButton: '기존 저장파일 소그룹화 (.json)',
 
 	                p2ProgressSummaryTitle: '진행상황 요약',
 	                p2ProgressTotalFmt: '전체 {n}',
@@ -12808,6 +13410,9 @@ ${explanationWithGlobal}
 	                phase0ImageCropsLabel: '그림/도표 크롭 (옵션)',
 	                phase0ImageCropsTextHtml: '그림/도표가 있는 문제: 이미지 크롭을 <code>question_text</code> 앞에 <code>![img](data:...)</code>로 삽입',
 	                phase0ImageCropsHelp: '기본값: 사용 안 함. 활성화 시 비용/용량이 증가할 수 있습니다.',
+	                phase1SubgroupingLabel: '유형 내 소그룹 (실험)',
+	                phase1SubgroupingTextHtml: '유형 내에서 “한 문장으로 같은 풀이가 가능한” 문제만 <code>subgroup_tag</code>로 묶기 (렌더러 유사도 그룹에 반영)',
+	                phase1SubgroupingHelp: '기본값: 사용 안 함. 활성화 시 1단계 이후 추가 호출이 발생합니다.',
 	
 	                runPlanLabel: '실행 계획',
 	                runStartFromLabel: '재시작 지점 (한 번만 적용)',
@@ -12828,6 +13433,8 @@ ${explanationWithGlobal}
 	                chunkTokensHelp: '청크 토큰을 키우면 호출 수는 줄지만, 프롬프트가 커집니다.',
 	                chunkTokens1bLabel: '1단계B: 분류 배치 토큰(대략)',
 	                chunkTokens1bHelp: '1단계B(유형분류) 배치 묶음에만 적용됩니다. (1단계A 유형표준 생성/검증과 분리)',
+	                subgroupChunkTokensLabel: '1단계: 소그룹 배치 토큰(대략)',
+	                subgroupChunkTokensHelp: '소그룹 생성(유형 내 문제 묶기) 배치 묶음에만 적용됩니다.',
 	                tokenizerModeLabel: '토크나이저 방식',
 	                tokenizerModeCharEstimate: '문자 기반 추정 (len÷4, 가장 빠름)',
 	                tokenizerModeCharEstimate3: '문자 기반 추정 (len÷3, 보수적)',
@@ -12960,6 +13567,7 @@ ${explanationWithGlobal}
 	                promptClassifierStandardLabel: '2a. 유형표준 생성 프롬프트',
 	                promptClassifierStandardVerifierLabel: '2a-검증. 유형표준 평가 프롬프트',
 	                promptClassifierApplyLabel: '2b. 유형분류 적용 프롬프트',
+	                promptSubgroupCreatorLabel: '2c. 소그룹 생성 프롬프트 (실험)',
 	                promptStandardProblemCreatorLabel: '3. 표준문제 생성 프롬프트',
 	                promptExplanationCreatorLabel: '4. 해설 생성 프롬프트',
 	                promptExplanationFeedbackLabel: '5. 감사/피드백 프롬프트',
@@ -13301,6 +13909,7 @@ ${explanationWithGlobal}
                 classifier_standard: getEl('prompt-classifier-standard'),
                 classifier_standard_verifier: getEl('prompt-classifier-standard-verifier'),
                 classifier_apply: getEl('prompt-classifier-apply'),
+                subgroup_creator: getEl('prompt-subgroup-creator'),
                 standard_problem_creator: getEl('prompt-standard-problem-creator'),
                 explanation_creator: getEl('prompt-explanation-creator'),
                 explanation_feedback: getEl('prompt-explanation-feedback'),
@@ -13345,11 +13954,18 @@ ${explanationWithGlobal}
                         const importedData = JSON.parse(e.target.result);
 
                         // Basic validation
-                        const requiredKeys = Object.keys(DEFAULT_PROMPTS);
-                        const importedKeys = Object.keys(importedData);
-                        const isValid = requiredKeys.every(
-                            key => importedKeys.includes(key) && typeof importedData[key]?.system === 'string'
-                        );
+                        const requiredKeys = [
+                            'extractor',
+                            'classifier_standard',
+                            'classifier_standard_verifier',
+                            'classifier_apply',
+                            'standard_problem_creator',
+                            'explanation_creator',
+                            'explanation_feedback',
+                            'coverage_verifier',
+                            'coverage_patcher',
+                        ];
+                        const isValid = requiredKeys.every((key) => typeof importedData?.[key]?.system === 'string');
                         if (!isValid) throw new Error("Imported file is missing required prompt keys or has an invalid format.");
 
                         currentPrompts = __normalizePrompts(importedData);
@@ -13617,7 +14233,7 @@ ${explanationWithGlobal}
 	            );
 	            [
 	                'run-start-from-select', 'run-stop-after-select', 'reset-call-counters-on-start-input',
-	                'chunk-tokens-input', 'chunk-tokens-1b-input',
+	                'chunk-tokens-input', 'chunk-tokens-1b-input', 'phase1-subgrouping-input', 'subgrouping-chunk-tokens-input',
 	                'phase1-arch-select',
 	                'phase2-arch-select', 'phase2-target-select', 'phase2-target-query-input', 'phase2-max-modules-input',
 	                'coverage-max-tokens-input', 'coverage-max-rounds-input', 'coverage-verifier-output-select', 'coverage-verifier-max-tries-input', 'coverage-final-verify-select',
@@ -13678,6 +14294,7 @@ ${explanationWithGlobal}
             const saveButton = getEl('save-button');
             const loadButton = getEl('load-button');
             const loadInput = getEl('load-progress-input');
+            const subgroupifySaveInput = getEl('subgroupify-save-input');
             const typeGuideImportBtn = getEl('type-guide-import-btn');
             const typeGuideImportInput = getEl('type-guide-import-input');
             const typeGuideImportStatus = getEl('type-guide-import-status');
@@ -13687,6 +14304,24 @@ ${explanationWithGlobal}
             saveButton.addEventListener('click', saveProgress);
             loadButton.addEventListener('click', () => loadInput.click());
             loadInput.addEventListener('change', loadProgress);
+            subgroupifySaveInput?.addEventListener('change', async (event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                try {
+                    const raw = await file.text();
+                    const obj = JSON.parse(raw);
+                    const res = await subgroupifyImportedSaveObject(obj);
+                    const stamp = new Date().toISOString().slice(0, 10);
+                    const base = file.name.replace(/\.[^.]+$/, '') || 'save';
+                    __downloadJsonFile(`${base}_subgroupified_${stamp}.json`, res.updated);
+                } catch (e) {
+                    const msg = e?.message || String(e || '');
+                    logger.error('SubgroupifySave', `Failed to subgroupify save: ${msg}`);
+                    alert(__tGui('exportFailedCheckLogsAlert'));
+                } finally {
+                    try { event.target.value = ''; } catch { }
+                }
+            });
 
             // Clear button - completely resets experiment state
             const clearButton = getEl('clear-button');
