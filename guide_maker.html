@@ -3807,9 +3807,18 @@
                     const retryCount = (Number.isFinite(s?.retryCount) && s.retryCount > 0) ? s.retryCount : 0;
                     const isErrorCooldown = retrying && (retryCount > 0 || (cooldownUntil - now > 5000));
 
+                    // Color policy (user-facing):
+                    // - inflight: warn (orange) so it stays "busy" throughout the request
+                    // - idle: success (green)
+                    // - cooldown/error: error (red)
+                    // - pacing: accent (purple)
                     const dotColor = isErrorCooldown
                         ? 'var(--error-color)'
-                        : (hasInflight ? 'var(--success-color)' : (hasPending ? 'var(--warn-color)' : (retrying ? 'var(--accent-color)' : 'var(--text-3)')));
+                        : ((hasInflight || s?.phase === 'inflight')
+                            ? 'var(--warn-color)'
+                            : ((hasPending || s?.phase === 'waiting_rate')
+                                ? 'var(--warn-color)'
+                                : (retrying ? 'var(--accent)' : 'var(--success-color)')));
 
                     const estTok = Number.isFinite(s?.estTokens) ? s.estTokens.toString() : '-';
 
@@ -5304,32 +5313,40 @@ function __extractActualTokens(data) {
                 const fixLine = (line) => {
                     let s = String(line ?? '');
 
+                    // Preserve leading blockquote prefix when we insert newlines.
+                    // Without this, a line like "> **Tip** * **A**: ..." gets split into:
+                    //   "> **Tip**\n* **A**: ..."
+                    // which escapes the blockquote and creates empty ">" lines.
+                    const bqMatch = s.match(/^(\s*(?:>\s*)+)(.*)$/);
+                    const bqPrefix = bqMatch ? bqMatch[1] : '';
+                    let body = bqMatch ? bqMatch[2] : s;
+
                     // Unwrap LaTeX accidentally wrapped in backticks: `$...$` or `$$...$$`
                     // (Only unwrap when the code span is purely LaTeX-delimited.)
                     {
-                        const beforeLatex = s;
-                        s = s.replace(/`(\$\$?[^`]*?\$\$?)`/g, '$1');
-                        if (s !== beforeLatex) fixCount++;
+                        const beforeLatex = body;
+                        body = body.replace(/`(\$\$?[^`]*?\$\$?)`/g, '$1');
+                        if (body !== beforeLatex) fixCount++;
                     }
 
                     // Fix common LaTeX hygiene: non-Latin subscripts/superscripts should use \text{...}
                     {
-                        const beforeText = s;
-                        s = s
+                        const beforeText = body;
+                        body = body
                             .replace(/_\{([가-힣\s]+)\}/g, '_{\\text{$1}}')
                             .replace(/\^\{([가-힣\s]+)\}/g, '^{\\text{$1}}');
-                        if (s !== beforeText) fixCount++;
+                        if (body !== beforeText) fixCount++;
                     }
 
                     // Split merged table rows like: "... | ... || 10.1 | ..."
-                    if (/^\s*\|/.test(s) && /\|\|\s*\d/.test(s)) {
-                        const next = s.replace(/\|\|\s*(?=\d)/g, '|\n|');
-                        if (next !== s) { s = next; fixCount++; }
+                    if (/^\s*\|/.test(body) && /\|\|\s*\d/.test(body)) {
+                        const next = body.replace(/\|\|\s*(?=\d)/g, '|\n|');
+                        if (next !== body) { body = next; fixCount++; }
                     }
 
                     // Split merged list items like: "... *   **X**: ..." or "... - **X**: ..."
-                    const before = s;
-                    s = s
+                    const before = body;
+                    body = body
                         // Require whitespace before a list marker so we don't break bold boundaries like "**...** **...**".
                         .replace(/(\S)\s+([*+-]\s+\*\*)/g, '$1\n$2')
                         .replace(/(\S)\s+(\d+\.\s+\*\*)/g, '$1\n$2')
@@ -5337,16 +5354,18 @@ function __extractActualTokens(data) {
                         .replace(/(\S)\s+(\d+\.\s{2,})(?=\S)/g, '$1\n$2');
                     
                     // Split glued headings like "...다.### (1) ..." into proper new paragraphs.
-                    s = s
+                    body = body
                         // Insert blank line before Markdown headings if they are glued to prior text.
                         // Avoid matching inside real headings like "#### Title".
                         .replace(/([^\s#])\s*(#{2,6}\s+\(?\d+\)?\s*)/g, '$1\n\n$2')
                         // Also handle headings glued without numbering.
                         .replace(/([^\s#])\s*(#{2,6}\s+)/g, '$1\n\n$2');
 
-                    if (s !== before) fixCount++;
+                    if (body !== before) fixCount++;
 
-                    return s;
+                    if (!bqPrefix) return body;
+                    // Re-apply the same blockquote prefix to all newly created lines.
+                    return body.split('\n').map(ln => `${bqPrefix}${ln}`).join('\n');
                 };
 
                 for (let i = 0; i < lines.length; i++) {
