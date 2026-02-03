@@ -7481,15 +7481,17 @@ Each <item> MUST include:
 <official_answer>The final correct answer ONLY if explicitly shown in the paper (answer key, solution, etc.). If not shown, leave empty.</official_answer>
 <official_explanation>The official explanation/solution ONLY if explicitly provided in the paper. If not provided, leave empty.</official_explanation>
 
-CRITICAL RULES:
-- Do NOT solve problems yourself to generate answers
-- Do NOT invent explanations
-- Include answer choices as part of the problem data
-- If a question has answer choices, put them ONLY in <answer_choices> and do NOT duplicate them inside <question_text>. (Exception: if choices are genuinely interleaved inside the stem and cannot be cleanly separated; in that case keep them in <question_text> and leave <answer_choices> empty.)
-- Shared passage/data: if a passage, table, figure, graph, or "common stem" is referenced by multiple questions, include the full passage/data in EACH relevant <question_text> so every extracted item is standalone/solvable.
-- Extract ONLY what is actually present in the document
-- Do not skip sub-questions; make Q3a, Q3b, etc as separate blocks
-- No commentary outside <data>...</data>
+	CRITICAL RULES:
+	- Do NOT solve problems yourself to generate answers
+	- Do NOT invent explanations
+	- Include answer choices as part of the problem data
+	- If a question has answer choices, put them ONLY in <answer_choices> and do NOT duplicate them inside <question_text>. (Exception: if choices are genuinely interleaved inside the stem and cannot be cleanly separated; in that case keep them in <question_text> and leave <answer_choices> empty.)
+	- IMPORTANT (보기/ㄱㄴㄷㄹ): If the paper shows a "<보기>" / "보기" block (e.g., ㄱ. ..., ㄴ. ..., ㄷ. ...) that the options refer to, keep that entire block inside <question_text>. In <answer_choices>, include ONLY the selectable options (e.g., "① ㄱ, ㄴ", "② ㄱ, ㄷ", ...) and do NOT include the <보기> block there.
+	- If multiple choices are written on one line (e.g., "① ... ② ... ③ ..."), still transcribe them as separate choices (prefer one choice per line) inside <answer_choices>.
+	- Shared passage/data: if a passage, table, figure, graph, or "common stem" is referenced by multiple questions, include the full passage/data in EACH relevant <question_text> so every extracted item is standalone/solvable.
+	- Extract ONLY what is actually present in the document
+	- Do not skip sub-questions; make Q3a, Q3b, etc as separate blocks
+	- No commentary outside <data>...</data>
 - Faithfully describe all visuals: Your primary goal is to extract 100% of the problem's information. For any non-textual content, provide a textual description so complete that a person can solve the problem without ever seeing the original image.
 - Visual-description safety: Do NOT reveal/guess the answer by naming the object/entity/category unless it is explicitly written/labeled in the document. Describe what is visible (shape, parts, inscriptions, arrangement, labels, values) without adding identifying claims that would shortcut the question.
 - When transcribing equations or variables from OCR, write them in LaTeX using $...$ or $$...$$ and **never** wrap LaTeX in backticks.`

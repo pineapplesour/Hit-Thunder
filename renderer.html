@@ -5343,18 +5343,103 @@
 	      });
 	    }
 
-    function stripAnswerEmphasis(text) {
-      // Remove bold markers only when they wrap a choice marker (e.g., **③ 240**, **3) 240**)
-      return coerceText(text).replace(
-        /\*\*(\s*(?:[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳➀➁➂➃➄➅➆➇➈➉➊➋➌➍➎➏➐➑➒➓]|(?:[1-9]|1\d|20)[\).])\s*[^*]+?)\*\*/g,
-        '$1'
-      );
+	    function stripAnswerEmphasis(text) {
+	      // Remove bold markers only when they wrap a choice marker (e.g., **③ 240**, **3) 240**)
+	      return coerceText(text).replace(
+	        /\*\*(\s*(?:[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳➀➁➂➃➄➅➆➇➈➉➊➋➌➍➎➏➐➑➒➓]|(?:[1-9]|1\d|20)[\).])\s*[^*]+?)\*\*/g,
+	        '$1'
+	      );
+		    }
+
+	    function splitAnswerChoiceBlock(text) {
+	      const t = coerceText(text).replace(/\r\n/g, '\n');
+	      const ENC = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
+	      const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳➀➁➂➃➄➅➆➇➈➉➊➋➌➍➎➏➐➑➒➓';
+	      const markerRe = new RegExp(`([${CIRCLED}])|(^|[^\\d])([1-9]|1\\d|20)[\\). ]`, 'gm');
+
+	      const markers = [];
+	      let m;
+	      while ((m = markerRe.exec(t))) {
+	        if (m[1]) {
+	          markers.push({ start: m.index, end: m.index + m[1].length, mark: m[1] });
+	          continue;
+	        }
+	        const prefix = m[2] || '';
+	        const n = parseInt(m[3], 10);
+	        const start = m.index + prefix.length;
+	        const end = m.index + m[0].length;
+	        const mark = (n >= 1 && n <= ENC.length) ? ENC[n - 1] : String(n);
+	        markers.push({ start, end, mark });
+	      }
+
+	      markers.sort((a, b) => (a.start - b.start) || (a.end - b.end));
+	      const uniq = [];
+	      markers.forEach(mk => {
+	        const prev = uniq[uniq.length - 1];
+	        if (prev && mk.start === prev.start) {
+	          // Prefer longer token (e.g., "1) " over "1)")
+	          if (mk.end > prev.end) uniq[uniq.length - 1] = mk;
+	          return;
+	        }
+	        if (prev && mk.start < prev.end) return; // overlap
+	        uniq.push(mk);
+	      });
+
+	      if (!uniq.length) return { prefix: '', items: [], hasMarkers: false };
+	      const prefix = t.slice(0, uniq[0].start).trim();
+	      const items = uniq.map((mk, idx) => {
+	        const next = uniq[idx + 1];
+	        const raw = t.slice(mk.end, next ? next.start : t.length);
+	        return { mark: mk.mark, text: raw.trim() };
+	      });
+	      return { prefix, items, hasMarkers: true };
 	    }
-	    function getOfficialAnswerText(raw) {
-	      const text = stripAnswerEmphasis(raw).trim();
-	      if (!text || text === '(없음)' || text === '없음') return '';
-	      return text;
+
+	    function normalizeQuestionAndChoices(questionText, answerChoices) {
+	      const q0 = coerceText(questionText);
+	      const a0 = coerceText(answerChoices);
+	      const aStrip = stripAnswerEmphasis(a0).trim();
+	      if (!aStrip) return { question_text: q0, answer_choices: a0, changed: false };
+
+	      const parsed = splitAnswerChoiceBlock(aStrip);
+	      if (!parsed || !parsed.hasMarkers || !Array.isArray(parsed.items) || parsed.items.length === 0) {
+	        return { question_text: q0, answer_choices: a0, changed: false };
+	      }
+
+	      const prefix = coerceText(parsed.prefix).trim();
+	      const rebuiltChoices = (parsed.items || [])
+	        .map(it => {
+	          const mark = String(it?.mark || '').trim();
+	          const txt = String(it?.text || '').trim();
+	          if (mark && txt) return `${mark} ${txt}`.trim();
+	          return (mark || txt).trim();
+	        })
+	        .filter(Boolean)
+	        .join('\n')
+	        .trim();
+
+	      let q = q0;
+	      let a = rebuiltChoices || a0;
+	      let changed = false;
+
+	      if (prefix) {
+	        const qNorm = q.replace(/\s+/g, ' ').trim();
+	        const preNorm = prefix.replace(/\s+/g, ' ').trim();
+	        if (!qNorm || !preNorm || !qNorm.includes(preNorm)) {
+	          q = (q ? q.trimEnd() + '\n\n' : '') + prefix;
+	          changed = true;
+	        }
+	      }
+	      if (rebuiltChoices && rebuiltChoices.trim() !== a0.trim()) changed = true;
+	      if (a0 && a !== a0) changed = true;
+
+	      return { question_text: q, answer_choices: a, changed };
 	    }
+		    function getOfficialAnswerText(raw) {
+		      const text = stripAnswerEmphasis(raw).trim();
+		      if (!text || text === '(없음)' || text === '없음') return '';
+		      return text;
+		    }
     function hasOfficialAnswer(raw) {
       return !!getOfficialAnswerText(raw);
     }
@@ -5763,50 +5848,21 @@
         if (m) targetIdx = m[0].toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
       }
 
-      // If we found a target circled index, bold that entire choice segment
-      if (targetIdx >= 0) {
-        const lineItems = (() => {
-          const items = [];
-          const lines = t.replace(/\r\n/g, '\n').split('\n');
-          const circledLineRe = /^\s*([①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳➀➁➂➃➄➅➆➇➈➉➊➋➌➍➎➏➐➑➒➓])\s*(.*)$/;
-          const numLineRe = /^\s*([1-9]|1\d|20)[\). ]\s*(.*)$/;
-          let current = null;
-          let foundMarker = false;
-          lines.forEach(line => {
-            const raw = String(line || '');
-            let m = raw.match(circledLineRe);
-            if (m) {
-              if (current) items.push(current);
-              const idx = typeof idxMap[m[1]] === 'number' ? idxMap[m[1]] : null;
-              current = { mark: m[1], idx, text: (m[2] || '').trim() };
-              foundMarker = true;
-              return;
-            }
-            m = raw.match(numLineRe);
-            if (m) {
-              if (current) items.push(current);
-              const n = parseInt(m[1], 10);
-              current = { mark: ENC[n - 1] || String(n), idx: n - 1, text: (m[2] || '').trim() };
-              foundMarker = true;
-              return;
-            }
-            const tline = raw.trim();
-            if (!tline) return;
-            if (current) {
-              current.text = current.text ? `${current.text}\n${tline}` : tline;
-            }
-          });
-          if (current) items.push(current);
-          return foundMarker ? items : [];
-        })();
-        if (lineItems.length) {
-          const out = lineItems.map(item => {
-            const seg = item.mark + (item.text ? ` ${item.text}` : '');
-            return item.idx === targetIdx ? `<strong>${seg}</strong>` : seg;
-          }).join('\n');
-          return renderInlineBold(out);
-        }
-      }
+	      // If we found a target circled index, bold that entire choice segment
+	      if (targetIdx >= 0) {
+	        const parsed = splitAnswerChoiceBlock(t);
+	        const lineItems = parsed.hasMarkers
+	          ? (parsed.items || []).map(it => ({ mark: it.mark, idx: (typeof idxMap[it.mark] === 'number') ? idxMap[it.mark] : null, text: it.text }))
+	          : [];
+	        if (lineItems.length) {
+	          const prefix = parsed.prefix ? (parsed.prefix.trimEnd() + '\n') : '';
+	          const out = prefix + lineItems.map(item => {
+	            const seg = item.mark + (item.text ? ` ${item.text}` : '');
+	            return item.idx === targetIdx ? `<strong>${seg}</strong>` : seg;
+	          }).join('\n');
+	          return renderInlineBold(out.trim());
+	        }
+	      }
 
       // Fallback: bold first exact occurrence of the official answer text (best effort)
       if (ans) {
@@ -6837,19 +6893,22 @@
         }
         LS.set(SOLVE_HISTORY_KEY, list);
       }
-      function applyProblemOverrides(q) {
-        if (!q || !q.qid) return q;
-        const st = getProblemState(q.qid);
-        const mergedOfficial = (typeof st.official_answer !== 'undefined') ? st.official_answer : q.official_answer;
-        const mergedOfficialNormalized = normalizeOfficialAnswerValue(mergedOfficial);
-        return {
-          ...q,
-          question_text: st.question_text ?? q.question_text,
-          answer_choices: st.answer_choices ?? q.answer_choices,
-          official_answer: mergedOfficialNormalized,
-          official_explanation: st.official_explanation ?? q.official_explanation
-        };
-      }
+	      function applyProblemOverrides(q) {
+	        if (!q || !q.qid) return q;
+	        const st = getProblemState(q.qid);
+	        const mergedOfficial = (typeof st.official_answer !== 'undefined') ? st.official_answer : q.official_answer;
+	        const mergedOfficialNormalized = normalizeOfficialAnswerValue(mergedOfficial);
+	        const baseQuestion = st.question_text ?? q.question_text;
+	        const baseChoices = st.answer_choices ?? q.answer_choices;
+	        const normalized = normalizeQuestionAndChoices(baseQuestion, baseChoices);
+	        return {
+	          ...q,
+	          question_text: normalized.question_text,
+	          answer_choices: normalized.answer_choices,
+	          official_answer: mergedOfficialNormalized,
+	          official_explanation: st.official_explanation ?? q.official_explanation
+	        };
+	      }
       function getMemoLinkChain(qid) {
         // memoLink 체인을 따라가서 그룹의 대표 키를 찾는다
         // ideology: 이미 공유된 문제를 기준으로 또 공유해도 모두 한 그룹으로 묶이도록
@@ -12294,47 +12353,21 @@
         DINGBAT_CIRCLED_CHOICES_BLACK.forEach((ch, idx) => { m[ch] = idx; });
         return m;
       })();
-		      function parseChoices(str) {
-		        const clean = stripAnswerEmphasis(str);
-		        const out = [];
-		        const lines = clean.replace(/\r\n/g, '\n').split('\n');
-	        const circledLineRe = /^\s*([①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳➀➁➂➃➄➅➆➇➈➉➊➋➌➍➎➏➐➑➒➓])\s*(.*)$/;
-	        const numLineRe = /^\s*([1-9]|1\d|20)[\). ]\s*(.*)$/;
-	        const hasExplicitMarkers = lines.some(line => circledLineRe.test(String(line || '')) || numLineRe.test(String(line || '')));
-	        let current = null;
-	        let started = !hasExplicitMarkers; // no markers => treat every non-empty line as a choice
-	        lines.forEach(line => {
-	          const raw = String(line || '');
-	          let m = raw.match(circledLineRe);
-	          if (m) {
-	            started = true;
-	            if (current) out.push(current);
-	            current = { mark: m[1], text: (m[2] || '').trim() };
-	            return;
-	          }
-	          m = raw.match(numLineRe);
-	          if (m) {
-	            started = true;
-	            if (current) out.push(current);
-	            const n = parseInt(m[1], 10);
-	            current = { mark: CIRCLED_CHOICES[n - 1] || String(n), text: (m[2] || '').trim() };
-	            return;
-	          }
-	          const tline = raw.trim();
-	          if (!tline) return;
-	          // When explicit markers exist, ignore any prefix text before the first marker (e.g., "<보기>" blocks).
-	          if (!started) return;
-	          if (current) {
-	            current.text = current.text ? `${current.text}\n${tline}` : tline;
-	          } else {
-	            // If explicit markers exist, stray text without a marker is not a new choice.
-	            if (hasExplicitMarkers) return;
-	            out.push({ mark: CIRCLED_CHOICES[out.length] || String(out.length + 1), text: tline });
-	          }
-	        });
-	        if (current) out.push(current);
-	        return out;
-	      }
+			      function parseChoices(str) {
+			        const clean = stripAnswerEmphasis(str);
+			        const parsed = splitAnswerChoiceBlock(clean);
+			        if (parsed && parsed.hasMarkers) {
+			          return (parsed.items || []).map(it => ({ mark: it.mark, text: it.text }));
+			        }
+			        const out = [];
+			        const lines = clean.replace(/\r\n/g, '\n').split('\n');
+			        lines.forEach(line => {
+			          const tline = String(line || '').trim();
+			          if (!tline) return;
+			          out.push({ mark: CIRCLED_CHOICES[out.length] || String(out.length + 1), text: tline });
+			        });
+			        return out;
+			      }
 	      function normalizeAnswerToken(ans) {
 	        const t = stripAnswerEmphasis(ans).trim();
 	        if (!t) return null;
