@@ -5355,12 +5355,31 @@
 	      const t = coerceText(text).replace(/\r\n/g, '\n');
 	      const ENC = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
 	      const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳➀➁➂➃➄➅➆➇➈➉➊➋➌➍➎➏➐➑➒➓';
-	      const markerRe = new RegExp(`([${CIRCLED}])|(^|[^\\d])([1-9]|1\\d|20)[\\). ]`, 'gm');
+	      const markerRe = new RegExp(`([${CIRCLED}])|(^|[^\\d·ㆍ])([1-9]|1\\d|20)[\\). ]`, 'gm');
+	      const prevNonSpaceIndex = (s, fromExclusive) => {
+	        let i = fromExclusive - 1;
+	        while (i >= 0) {
+	          const ch = s[i];
+	          if (ch && !/\s/.test(ch)) return i;
+	          i--;
+	        }
+	        return -1;
+	      };
+	      const isMiddleDotNumberContext = (s, markerStart) => {
+	        const dotIdx = prevNonSpaceIndex(s, markerStart);
+	        if (dotIdx < 0) return false;
+	        const dot = s[dotIdx];
+	        if (dot !== '·' && dot !== 'ㆍ') return false;
+	        const numIdx = prevNonSpaceIndex(s, dotIdx);
+	        if (numIdx < 0) return false;
+	        return /[0-9０-９]/.test(s[numIdx] || '');
+	      };
 
 	      const markers = [];
 	      let m;
 	      while ((m = markerRe.exec(t))) {
 	        if (m[1]) {
+	          if (isMiddleDotNumberContext(t, m.index)) continue;
 	          markers.push({ start: m.index, end: m.index + m[1].length, mark: m[1] });
 	          continue;
 	        }
@@ -5368,6 +5387,7 @@
 	        const n = parseInt(m[3], 10);
 	        const start = m.index + prefix.length;
 	        const end = m.index + m[0].length;
+	        if (isMiddleDotNumberContext(t, start)) continue;
 	        const mark = (n >= 1 && n <= ENC.length) ? ENC[n - 1] : String(n);
 	        markers.push({ start, end, mark });
 	      }
