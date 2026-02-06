@@ -5356,6 +5356,79 @@
 	      const ENC = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
 	      const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳➀➁➂➃➄➅➆➇➈➉➊➋➌➍➎➏➐➑➒➓';
 	      const markerRe = new RegExp(`([${CIRCLED}])|(^|[^\\d·ㆍ])([1-9]|1\\d|20)[\\). ]`, 'gm');
+	      const buildMathRanges = (s) => {
+	        const ranges = [];
+	        const pushRange = (start, end) => {
+	          if (end > start) ranges.push([start, end]);
+	        };
+	        const isEscapedAt = (str, idx) => {
+	          let bs = 0;
+	          let i = idx - 1;
+	          while (i >= 0 && str[i] === '\\') { bs++; i--; }
+	          return (bs % 2) === 1;
+	        };
+	        let i = 0;
+	        while (i < s.length) {
+	          if (s.startsWith('$$', i) && !isEscapedAt(s, i)) {
+	            const start = i;
+	            i += 2;
+	            while (i < s.length) {
+	              if (s.startsWith('$$', i) && !isEscapedAt(s, i)) {
+	                i += 2;
+	                break;
+	              }
+	              i++;
+	            }
+	            pushRange(start, Math.min(i, s.length));
+	            continue;
+	          }
+	          if (s[i] === '$' && !isEscapedAt(s, i)) {
+	            const start = i;
+	            i += 1;
+	            while (i < s.length) {
+	              if (s[i] === '$' && !isEscapedAt(s, i)) {
+	                i += 1;
+	                break;
+	              }
+	              i++;
+	            }
+	            pushRange(start, Math.min(i, s.length));
+	            continue;
+	          }
+	          if (s.startsWith('\\(', i)) {
+	            const start = i;
+	            const end = s.indexOf('\\)', i + 2);
+	            if (end === -1) {
+	              pushRange(start, s.length);
+	              break;
+	            }
+	            pushRange(start, end + 2);
+	            i = end + 2;
+	            continue;
+	          }
+	          if (s.startsWith('\\[', i)) {
+	            const start = i;
+	            const end = s.indexOf('\\]', i + 2);
+	            if (end === -1) {
+	              pushRange(start, s.length);
+	              break;
+	            }
+	            pushRange(start, end + 2);
+	            i = end + 2;
+	            continue;
+	          }
+	          i++;
+	        }
+	        return ranges;
+	      };
+	      const mathRanges = buildMathRanges(t);
+	      const isInsideMathRange = (idx) => {
+	        for (let i = 0; i < mathRanges.length; i++) {
+	          const rg = mathRanges[i];
+	          if (idx >= rg[0] && idx < rg[1]) return true;
+	        }
+	        return false;
+	      };
 	      const prevNonSpaceIndex = (s, fromExclusive) => {
 	        let i = fromExclusive - 1;
 	        while (i >= 0) {
@@ -5379,6 +5452,7 @@
 	      let m;
 	      while ((m = markerRe.exec(t))) {
 	        if (m[1]) {
+	          if (isInsideMathRange(m.index)) continue;
 	          if (isMiddleDotNumberContext(t, m.index)) continue;
 	          markers.push({ start: m.index, end: m.index + m[1].length, mark: m[1] });
 	          continue;
@@ -5387,6 +5461,7 @@
 	        const n = parseInt(m[3], 10);
 	        const start = m.index + prefix.length;
 	        const end = m.index + m[0].length;
+	        if (isInsideMathRange(start)) continue;
 	        if (isMiddleDotNumberContext(t, start)) continue;
 	        const mark = (n >= 1 && n <= ENC.length) ? ENC[n - 1] : String(n);
 	        markers.push({ start, end, mark });
