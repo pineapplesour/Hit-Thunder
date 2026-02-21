@@ -10894,17 +10894,39 @@ ${chunkText}
             return `TYPE: ${name}\n\n${items.join('\n\n---\n\n')}`.trim();
         }
 
-        function __parseQidsFromText(raw) {
-            const s = String(raw || '').trim();
-            if (!s) return [];
-            const parts = s.split(/[\s,]+/).map(x => String(x || '').trim()).filter(Boolean);
-            const out = [];
-            for (const p of parts) {
-                const t = p.replace(/^[-*•\s]+/, '').trim();
-                if (t) out.push(t);
-            }
-            return Array.from(new Set(out));
-        }
+	        function __parseQidsFromText(raw) {
+	            const s = String(raw || '').trim();
+	            if (!s) return [];
+	            // IMPORTANT: QIDs may contain spaces (e.g., "2018 전기이론...pdf::Q11").
+	            // Never split on whitespace; prefer line-based parsing and keep internal spaces intact.
+	            const lines = s.split(/\r?\n/).map(x => String(x || '').trim()).filter(Boolean);
+	            const out = [];
+	            for (const lineRaw of lines) {
+	                let t = String(lineRaw || '').trim();
+	                if (!t) continue;
+	                // Common noisy prefixes from LLMs
+	                t = t.replace(/^qids?\s*[:：]\s*/i, '').trim();
+	                t = t.replace(/^qid\s*[:：]\s*/i, '').trim();
+	                t = t.replace(/^[-*•\u2022\s]+/, '').trim();
+	                t = t.replace(/^\d+\s*[\).]\s*/, '').trim();
+	                t = t.replace(/^[`"“”']+|[`"“”']+$/g, '').trim();
+	                if (!t) continue;
+
+	                // Sometimes multiple QIDs are put on one line separated by commas.
+	                if (t.includes(',') && (t.match(/::\s*Q/gi) || []).length >= 2) {
+	                    t.split(',').map(x => String(x || '').trim()).filter(Boolean).forEach(part => {
+	                        let p = part.replace(/^[-*•\u2022\s]+/, '').trim();
+	                        p = p.replace(/^\d+\s*[\).]\s*/, '').trim();
+	                        p = p.replace(/^[`"“”']+|[`"“”']+$/g, '').trim();
+	                        if (p) out.push(p);
+	                    });
+	                    continue;
+	                }
+
+	                out.push(t);
+	            }
+	            return Array.from(new Set(out));
+	        }
 
         function __buildSubgroupingUnitsForType(typeName, problems, { maxTokens } = {}) {
             const maxT = __clampInt(maxTokens ?? DEFAULT_CHUNK_TOKENS, { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS });
