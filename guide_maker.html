@@ -826,13 +826,14 @@
 	                        <button id="load-button" class="ui-btn" data-i18n-title="loadButtonTitle" data-i18n-aria-label="loadButtonTitle">
 	                            <span class="material-symbols-outlined">folder_open</span>
 	                        </button>
-                        <input type="file" id="load-progress-input" accept=".json" style="display: none;">
-                        <input type="file" id="subgroupify-save-input" accept=".json" style="display: none;">
+	                        <input type="file" id="load-progress-input" accept=".json" style="display: none;">
+	                        <input type="file" id="subgroupify-save-input" accept=".json" style="display: none;">
+	                        <input type="file" id="postprocess-save-input" accept=".json" style="display: none;">
 
-		                        <button id="clear-button" class="ui-btn" title="실험 초기화 (전체 삭제)" data-i18n-title="clearButtonTitle" data-i18n-aria-label="clearButtonTitle">
+	                        <button id="clear-button" class="ui-btn" title="실험 초기화 (전체 삭제)" data-i18n-title="clearButtonTitle" data-i18n-aria-label="clearButtonTitle">
 	                            <span class="material-symbols-outlined">delete_forever</span>
 	                        </button>
-                    </div>
+	                    </div>
 
                     <div style="margin-top: 0.5rem;">
                         <label
@@ -1505,6 +1506,17 @@
 	                            placeholder="Search (context/message)" style="width:240px;" data-i18n-placeholder="logFilterQueryPlaceholder">
 	                        <button id="download-logs-btn" class="ui-btn" data-i18n="logDownloadButton">다운로드(필터됨)</button>
 	                        <button id="clear-logs-btn" class="ui-btn" data-i18n="logClearButton">화면 지우기</button>
+                    </div>
+                    <div id="full-capture-tools"
+                        style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom: 0.5rem;">
+                        <label style="font-size:12px; color:var(--text-2);">
+                            <input type="checkbox" id="full-capture-enabled-input">
+                            <span data-i18n="fullCaptureEnabledLabel">Full API capture (IndexedDB)</span>
+                        </label>
+                        <button id="full-capture-export-btn" class="ui-btn" data-i18n="fullCaptureExportButton">Export full log (JSONL)</button>
+                        <button id="full-capture-clear-btn" class="ui-btn" data-i18n="fullCaptureClearButton">Clear full log</button>
+                        <span id="full-capture-status"
+                            style="font-size:12px; color:var(--text-3); font-family:monospace;"></span>
                     </div>
 		                    <details id="format-errors-details" class="ui-panel" style="margin: 0.5rem 0;">
 		                        <summary id="summary-format-errors" data-i18n="summaryFormatErrors">형식 오류(구조화 출력) — raw I/O 모음</summary>
@@ -3747,6 +3759,252 @@
 
         try { window.__apiKeyLive = __apiKeyLive; } catch { }
 
+        // ===== Full API I/O capture (IndexedDB) =====
+        const __fullApiCapture = (() => {
+            const STORAGE_KEY = 'hit_thunder_full_api_capture_enabled_v1';
+            const DB_NAME = 'hit_thunder_guide_maker';
+            const DB_VERSION = 1;
+            const STORE_NAME = 'full_api_capture_v1';
+
+            const state = {
+                enabled: false,
+                approxCount: 0,
+                buffer: [],
+                flushTimerId: null,
+                flushing: false,
+                lastError: '',
+                db: null,
+                openPromise: null,
+                uiPingTimerId: null,
+            };
+
+            const __loadEnabled = () => {
+                try { state.enabled = localStorage.getItem(STORAGE_KEY) === '1'; } catch { state.enabled = false; }
+            };
+            const __saveEnabled = () => {
+                try { localStorage.setItem(STORAGE_KEY, state.enabled ? '1' : '0'); } catch { }
+            };
+
+            const __openDb = async () => {
+                if (state.db) return state.db;
+                if (state.openPromise) return state.openPromise;
+                state.openPromise = new Promise((resolve, reject) => {
+                    try {
+                        const req = indexedDB.open(DB_NAME, DB_VERSION);
+                        req.onupgradeneeded = () => {
+                            const db = req.result;
+                            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                                db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                            }
+                        };
+                        req.onsuccess = () => resolve(req.result);
+                        req.onerror = () => reject(req.error || new Error('IndexedDB open failed.'));
+                    } catch (e) {
+                        reject(e);
+                    }
+                }).then(db => {
+                    state.db = db;
+                    state.openPromise = null;
+                    state.lastError = '';
+                    return db;
+                }).catch(e => {
+                    state.openPromise = null;
+                    state.lastError = e?.message || String(e || '');
+                    throw e;
+                });
+                return state.openPromise;
+            };
+
+            const __sanitizeText = (text) => {
+                let s = String(text ?? '');
+                s = s.replace(/!\[[^\]]*]\(data:[^)]+\)/gi, '[image]');
+                s = s.replace(/<\s*img\b[^>]*\bsrc\s*=\s*["']data:[^"']+["'][^>]*>/gi, '[image]');
+                s = s.replace(/data:image\/[^;\s]+;base64,[a-z0-9+/=]+/gi, '[image]');
+                return s;
+            };
+
+            const sanitizeMessages = (messages) => {
+                const arr = Array.isArray(messages) ? messages : [];
+                return arr.map(m => {
+                    const role = String(m?.role || '').trim();
+                    const name = m?.name != null ? String(m.name) : undefined;
+                    const content = m?.content;
+                    if (typeof content === 'string') {
+                        return { role, ...(name ? { name } : {}), content: __sanitizeText(content) };
+                    }
+                    if (Array.isArray(content)) {
+                        const parts = content.map(p => {
+                            if (!p || typeof p !== 'object') return p;
+                            const t = String(p.type || '').trim();
+                            if (t === 'text') return { ...p, text: __sanitizeText(p.text || '') };
+                            // Drop binary/image payloads to keep capture size sane.
+                            return { type: t || 'unknown', omitted: true };
+                        });
+                        return { role, ...(name ? { name } : {}), content: parts };
+                    }
+                    // Unknown shape: keep minimal
+                    return { role, ...(name ? { name } : {}), content: '[unsupported content]' };
+                });
+            };
+
+            const __pingUi = () => {
+                if (state.uiPingTimerId) return;
+                state.uiPingTimerId = setTimeout(() => {
+                    state.uiPingTimerId = null;
+                    try { __refreshFullCaptureUi(); } catch { }
+                }, 400);
+            };
+
+            const __scheduleFlush = () => {
+                if (state.flushTimerId) return;
+                state.flushTimerId = setTimeout(() => {
+                    state.flushTimerId = null;
+                    flush().catch(() => { });
+                }, 800);
+            };
+
+            const append = (record) => {
+                if (!state.enabled) return;
+                try {
+                    state.buffer.push(record);
+                    if (state.buffer.length >= 6) flush().catch(() => { });
+                    else __scheduleFlush();
+                    __pingUi();
+                } catch (e) {
+                    state.lastError = e?.message || String(e || '');
+                }
+            };
+
+            const flush = async () => {
+                if (!state.enabled) return;
+                if (state.flushing) return;
+                if (!state.buffer.length) return;
+                state.flushing = true;
+                const batch = state.buffer.splice(0, state.buffer.length);
+                try {
+                    const db = await __openDb();
+                    await new Promise((resolve, reject) => {
+                        const tx = db.transaction(STORE_NAME, 'readwrite');
+                        const store = tx.objectStore(STORE_NAME);
+                        batch.forEach(rec => { try { store.add(rec); } catch { } });
+                        tx.oncomplete = () => resolve();
+                        tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed.'));
+                        tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted.'));
+                    });
+                    state.approxCount += batch.length;
+                    state.lastError = '';
+                } catch (e) {
+                    // Put it back so user can export later if DB becomes available.
+                    state.buffer.unshift(...batch);
+                    state.lastError = e?.message || String(e || '');
+                } finally {
+                    state.flushing = false;
+                    __pingUi();
+                }
+            };
+
+            const refreshCount = async () => {
+                try {
+                    const db = await __openDb();
+                    const n = await new Promise((resolve, reject) => {
+                        const tx = db.transaction(STORE_NAME, 'readonly');
+                        const store = tx.objectStore(STORE_NAME);
+                        const req = store.count();
+                        req.onsuccess = () => resolve(req.result || 0);
+                        req.onerror = () => reject(req.error || new Error('IndexedDB count failed.'));
+                    });
+                    state.approxCount = Number(n) || 0;
+                    __pingUi();
+                    return state.approxCount;
+                } catch (e) {
+                    state.lastError = e?.message || String(e || '');
+                    __pingUi();
+                    return state.approxCount;
+                }
+            };
+
+            const clear = async () => {
+                await flush().catch(() => { });
+                const db = await __openDb();
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readwrite');
+                    const store = tx.objectStore(STORE_NAME);
+                    const req = store.clear();
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error || new Error('IndexedDB clear failed.'));
+                });
+                state.approxCount = 0;
+                state.buffer.length = 0;
+                state.lastError = '';
+                __pingUi();
+            };
+
+            const __downloadBlob = (filename, blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            const exportJsonl = async ({ filename } = {}) => {
+                await flush().catch(() => { });
+                const db = await __openDb();
+                const parts = [];
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readonly');
+                    const store = tx.objectStore(STORE_NAME);
+                    const req = store.openCursor();
+                    req.onsuccess = () => {
+                        const cursor = req.result;
+                        if (!cursor) return resolve();
+                        try {
+                            parts.push(JSON.stringify(cursor.value) + '\n');
+                        } catch { }
+                        cursor.continue();
+                    };
+                    req.onerror = () => reject(req.error || new Error('IndexedDB cursor failed.'));
+                });
+                const name = filename || `full_api_capture_${new Date().toISOString().replace(/[:.]/g, '-')}.jsonl`;
+                __downloadBlob(name, new Blob(parts, { type: 'application/jsonl;charset=utf-8' }));
+            };
+
+            const isEnabled = () => !!state.enabled;
+            const setEnabled = async (v) => {
+                const next = !!v;
+                if (state.enabled && !next) {
+                    await flush().catch(() => { });
+                }
+                state.enabled = next;
+                __saveEnabled();
+                if (state.enabled) {
+                    await __openDb().catch(() => { });
+                    await refreshCount().catch(() => { });
+                }
+                __pingUi();
+                return state.enabled;
+            };
+
+            const getStatus = () => ({
+                enabled: !!state.enabled,
+                approxCount: Number(state.approxCount) || 0,
+                pending: state.buffer.length,
+                lastError: state.lastError || '',
+            });
+
+            __loadEnabled();
+            if (state.enabled) {
+                __openDb().then(() => refreshCount()).catch(() => { });
+            }
+
+            return { isEnabled, setEnabled, append, flush, clear, exportJsonl, refreshCount, getStatus, sanitizeMessages };
+        })();
+
+        try { window.__fullApiCapture = __fullApiCapture; } catch { }
+
         // ===== API Monitor (UI) =====
         const __apiMonitor = (() => {
             const state = {
@@ -4642,6 +4900,9 @@ function __extractActualTokens(data) {
                 let monitorCallId = null;
                 let requestId = null;
                 let fetchStartAt = 0;
+                let capEnabled = false;
+                let capMessages = null;
+                let capBase = null;
 
                 try {
                     logger.info(context, `API call attempt #${attempt}...`);
@@ -4678,6 +4939,11 @@ function __extractActualTokens(data) {
                             const summary = __summarizeApiPayloadForLog({ model: modelName, messages });
                             logger.info(context, `API Input (payload):\n${summary}`);
                         } catch { }
+                    }
+
+                    capEnabled = (() => { try { return __fullApiCapture?.isEnabled?.() === true; } catch { return false; } })();
+                    if (capEnabled) {
+                        try { capMessages = __fullApiCapture.sanitizeMessages(messages); } catch { capMessages = null; }
                     }
 
                     estTokens = __estimateTokensFromMessages(messages);
@@ -4812,6 +5078,26 @@ function __extractActualTokens(data) {
                                 return s.replace(/([?&]key=)[^&]+/gi, '$1***');
                             } catch { return ''; }
                         })();
+                        if (capEnabled) {
+                            capBase = {
+                                ts: Date.now(),
+                                context,
+                                attempt,
+                                apiMode,
+                                model: modelName,
+                                url: safeUrlForLog || '',
+                                estTokens,
+                                rateWaitMs,
+                                timeoutMs,
+                                options: {
+                                    temperature: Number.isFinite(requestOptions?.temperature) ? requestOptions.temperature : null,
+                                    top_p: Number.isFinite(requestOptions?.top_p) ? requestOptions.top_p : null,
+                                    top_k: Number.isFinite(requestOptions?.top_k) ? requestOptions.top_k : null,
+                                    max_tokens: Number.isFinite(requestOptions?.max_tokens) ? requestOptions.max_tokens : null,
+                                },
+                                messages: capMessages,
+                            };
+                        }
                         logger.info(
                             context,
                             `→ API Request Sent (mode=${apiMode}, url=${safeUrlForLog || '(n/a)'}, key=${maskKey(keyToUse)}, estTokens=${estTokens}, rateWaitMs=${rateWaitMs}, timeoutMs=${timeoutMs})`
@@ -4841,6 +5127,17 @@ function __extractActualTokens(data) {
 
                                 if (Number.isFinite(requestOptions.top_k) && mentionsTopK) {
                                     logger.warn(context, `API rejected top_k/topK; retrying without top_k.`);
+                                    try {
+                                        if (capEnabled && capBase) __fullApiCapture.append({
+                                            ...capBase,
+                                            ok: false,
+                                            httpStatus: response.status,
+                                            requestId,
+                                            latencyMs,
+                                            error: 'HTTP 400 (drop top_k)',
+                                            errorBody: String(errorBody || '').slice(0, 30000),
+                                        });
+                                    } catch { }
                                     requestOptions.top_k = null;
                                     try { __apiKeyLive.onDone(keyToUse, { uniqueId: context, httpStatus: response.status, message: `HTTP ${response.status}` }); keyLiveDone = true; } catch { }
                                     try { __apiMonitor.finishCall(monitorCallId, { ts: Date.now(), ok: false, httpStatus: response.status, key: maskKey(keyToUse), context, estTokens, latencyMs, requestId, message: 'HTTP 400 (drop top_k)' }); } catch { }
@@ -4849,6 +5146,17 @@ function __extractActualTokens(data) {
                                 }
                                 if (Number.isFinite(requestOptions.top_p) && mentionsTopP) {
                                     logger.warn(context, `API rejected top_p/topP; retrying without top_p.`);
+                                    try {
+                                        if (capEnabled && capBase) __fullApiCapture.append({
+                                            ...capBase,
+                                            ok: false,
+                                            httpStatus: response.status,
+                                            requestId,
+                                            latencyMs,
+                                            error: 'HTTP 400 (drop top_p)',
+                                            errorBody: String(errorBody || '').slice(0, 30000),
+                                        });
+                                    } catch { }
                                     requestOptions.top_p = null;
                                     try { __apiKeyLive.onDone(keyToUse, { uniqueId: context, httpStatus: response.status, message: `HTTP ${response.status}` }); keyLiveDone = true; } catch { }
                                     try { __apiMonitor.finishCall(monitorCallId, { ts: Date.now(), ok: false, httpStatus: response.status, key: maskKey(keyToUse), context, estTokens, latencyMs, requestId, message: 'HTTP 400 (drop top_p)' }); } catch { }
@@ -4857,6 +5165,17 @@ function __extractActualTokens(data) {
                                 }
                                 if (Number.isFinite(requestOptions.max_tokens) && mentionsMax) {
                                     logger.warn(context, `API rejected max_tokens/maxOutputTokens; retrying without max_tokens.`);
+                                    try {
+                                        if (capEnabled && capBase) __fullApiCapture.append({
+                                            ...capBase,
+                                            ok: false,
+                                            httpStatus: response.status,
+                                            requestId,
+                                            latencyMs,
+                                            error: 'HTTP 400 (drop max_tokens)',
+                                            errorBody: String(errorBody || '').slice(0, 30000),
+                                        });
+                                    } catch { }
                                     requestOptions.max_tokens = null;
                                     try { __apiKeyLive.onDone(keyToUse, { uniqueId: context, httpStatus: response.status, message: `HTTP ${response.status}` }); keyLiveDone = true; } catch { }
                                     try { __apiMonitor.finishCall(monitorCallId, { ts: Date.now(), ok: false, httpStatus: response.status, key: maskKey(keyToUse), context, estTokens, latencyMs, requestId, message: 'HTTP 400 (drop max_tokens)' }); } catch { }
@@ -4873,6 +5192,17 @@ function __extractActualTokens(data) {
                             logger.warn(context, `API Error: HTTP ${response.status} ${response.statusText}. Retrying with another key (if available).`);
                             const errBodyText = (errorBody || '').toString();
                             if (errBodyText) logger.warn(context, `API Error Body (HTTP ${response.status}, requestId=${requestId || 'n/a'}):\n${errBodyText}`);
+                            try {
+                                if (capEnabled && capBase) __fullApiCapture.append({
+                                    ...capBase,
+                                    ok: false,
+                                    httpStatus: response.status,
+                                    requestId,
+                                    latencyMs,
+                                    error: `HTTP ${response.status} ${response.statusText}`.trim(),
+                                    errorBody: String(errorBody || '').slice(0, 30000),
+                                });
+                            } catch { }
                             try {
                                 __apiMonitor.finishCall(monitorCallId, {
                                     ts: Date.now(),
@@ -4984,6 +5314,17 @@ function __extractActualTokens(data) {
                             `← API Response Received (mode=${apiMode}, HTTP ${response.status}, latencyMs=${latencyMs}, requestId=${requestId || 'n/a'})`
                         );
                     } catch { }
+                    try {
+                        if (capEnabled && capBase) __fullApiCapture.append({
+                            ...capBase,
+                            ok: true,
+                            httpStatus: response.status,
+                            requestId,
+                            latencyMs,
+                            actualTokens,
+                            responseText: cleaned,
+                        });
+                    } catch { }
                     return cleaned;
 
                 } catch (error) {
@@ -5038,6 +5379,31 @@ function __extractActualTokens(data) {
                                 context,
                                 `← API Exception (httpStatus=${Number.isFinite(httpStatus) ? httpStatus : 'n/a'}, latencyMs=${latencyMs}, requestId=${requestId || 'n/a'}): ${doneMsg}`
                             );
+                        } catch { }
+                        try {
+                            if (__fullApiCapture?.isEnabled?.()) {
+                                __fullApiCapture.append({
+                                    ...(capBase || {
+                                        ts: Date.now(),
+                                        context,
+                                        attempt,
+                                        apiMode: '',
+                                        model: '',
+                                        url: '',
+                                        estTokens,
+                                        rateWaitMs,
+                                        timeoutMs,
+                                        options: {},
+                                        messages: capMessages,
+                                    }),
+                                    ok: false,
+                                    httpStatus,
+                                    requestId,
+                                    latencyMs,
+                                    error: doneMsg,
+                                    didTimeout: !!didTimeout,
+                                });
+                            }
                         } catch { }
                         if (!isCancelled) await __sleepInterruptible(80);
                     } else if (!isCancelled) {
@@ -12664,45 +13030,73 @@ ${explanationWithGlobal}
             logger.info("FileProcessing", `File processing complete. Generated ${examPapers.length} total exam paper units.`);
         }
 
-        //======================================================================
-        // 6. UI RENDERING (TABS + CARDS)
-        //======================================================================
+	        //======================================================================
+	        // 6. UI RENDERING (TABS + CARDS)
+	        //======================================================================
 
-        function renderActiveProcess() {
-            if (!activeProcess) return;
-            renderTabs();
-            const container = getEl('pipelines-content-container');
-            switch (activeProcess.activeTabId) {
-                case 'phase0-extract':
-                    container.innerHTML = renderPhase0AndPatternMap();
-                    break;
-                case 'phase2-modules':
-                    container.innerHTML = renderPhase2Modules();
-                    break;
-                case 'phase3-final':
-                    container.innerHTML = renderPhase3Final();
-                    break;
-            }
-        }
+	        let __uiTabId = 'phase0-extract'; // when no activeProcess is loaded/created yet
 
-        function renderTabs() {
-            const tabs = [
-                { id: 'phase0-extract', label: '1. Extraction & Classification' },
-                { id: 'phase2-modules', label: '2. Standard Problems & Explanations' },
-                { id: 'phase3-final', label: '3. Final Mastery Manual' },
-            ];
-            const nav = getEl('tabs-nav-container');
-	            nav.innerHTML = tabs.map(t =>
-	                `<button class="ui-btn tab-button ${activeProcess.activeTabId === t.id ? 'active' : ''}" data-tab-id="${t.id}">${t.label}</button>`
-	            ).join('');
+	        function __renderNoActiveProcessTab(tabId) {
+	            const t = String(tabId || '');
+	            if (t === 'postprocess-save') return renderSavePostprocessing();
+	            return `
+	              <div class="ui-panel">
+	                <div class="muted">
+	                  No active pipeline state loaded yet.<br>
+	                  - Upload exam papers and click Start, or<br>
+	                  - Load a progress file, or<br>
+	                  - Use "${escapeHtmlForInnerHTML(__tGui('tabPostprocessSave'))}" to patch an existing renderer save.
+	                </div>
+	              </div>
+	            `;
+	        }
 
-            nav.querySelectorAll('.tab-button').forEach(btn => {
-                btn.onclick = () => {
-                    activeProcess.activeTabId = btn.dataset.tabId;
-                    renderActiveProcess();
-                };
-            });
-        }
+	        function renderActiveProcess() {
+	            renderTabs();
+	            const container = getEl('pipelines-content-container');
+	            const tabId = (activeProcess && activeProcess.activeTabId) ? activeProcess.activeTabId : (__uiTabId || 'phase0-extract');
+	            if (!activeProcess) {
+	                container.innerHTML = __renderNoActiveProcessTab(tabId);
+	                return;
+	            }
+	            switch (tabId) {
+	                case 'phase0-extract':
+	                    container.innerHTML = renderPhase0AndPatternMap();
+	                    break;
+	                case 'phase2-modules':
+	                    container.innerHTML = renderPhase2Modules();
+	                    break;
+	                case 'phase3-final':
+	                    container.innerHTML = renderPhase3Final();
+	                    break;
+	                case 'postprocess-save':
+	                    container.innerHTML = renderSavePostprocessing();
+	                    break;
+	            }
+	        }
+
+	        function renderTabs() {
+	            const tabs = [
+	                { id: 'phase0-extract', label: '1. Extraction & Classification' },
+	                { id: 'phase2-modules', label: '2. Standard Problems & Explanations' },
+	                { id: 'phase3-final', label: '3. Final Mastery Manual' },
+	                { id: 'postprocess-save', label: __tGui('tabPostprocessSave') },
+	            ];
+	            const nav = getEl('tabs-nav-container');
+	            const current = (activeProcess && activeProcess.activeTabId) ? activeProcess.activeTabId : (__uiTabId || 'phase0-extract');
+		            nav.innerHTML = tabs.map(t =>
+		                `<button class="ui-btn tab-button ${current === t.id ? 'active' : ''}" data-tab-id="${t.id}">${t.label}</button>`
+		            ).join('');
+
+	            nav.querySelectorAll('.tab-button').forEach(btn => {
+	                btn.onclick = () => {
+	                    const next = btn.dataset.tabId;
+	                    if (activeProcess) activeProcess.activeTabId = next;
+	                    else __uiTabId = next;
+	                    renderActiveProcess();
+	                };
+	            });
+	        }
 
         function renderMarkdown(text) {
             return text ? marked.parse(text) : '<p>No content yet.</p>';
@@ -13044,7 +13438,7 @@ ${explanationWithGlobal}
         }
 
 
-        function renderPhase3Final() {
+	        function renderPhase3Final() {
             const g = activeProcess.phase3_finalManual || {};
             const content = g.content ||
                 (g.status === 'pending'
@@ -13070,8 +13464,195 @@ ${explanationWithGlobal}
 		                      ${escapeHtmlForInnerHTML(__tGui('finalGuideDownloadTxtButton'))}
 		                  </button>
 		              </div>
-		          `;
-        }
+			          `;
+	        }
+
+	        // ----- SAVE POSTPROCESSING (import a renderer save and patch it) -----
+	        const POSTPROCESS_SAVE_SETTINGS_KEY = 'mastery_manual_postprocess_save_settings_v1';
+	        const __postprocessSave = (() => {
+	            const DEFAULT = {
+	                subgroupChunkTokens: DEFAULT_CHUNK_TOKENS,
+	                fillChunkTokens: DEFAULT_CHUNK_TOKENS,
+	                typeGuideMaxChars: 12000,
+	                includeTypeGuide: true,
+	                fillAnswers: true,
+	                fillExplanations: true,
+	                overwriteAnswers: false,
+	                overwriteExplanations: false,
+	                useDuckDuckGo: false,
+	            };
+	            const state = {
+	                fileName: '',
+	                original: null,
+	                working: null,
+	                loadedAt: null,
+	                summary: null,
+	                settings: { ...DEFAULT },
+	                run: { running: false, stop: false, status: '', progress: '' },
+	            };
+	
+	            const loadSettings = () => {
+	                try {
+	                    const raw = localStorage.getItem(POSTPROCESS_SAVE_SETTINGS_KEY);
+	                    const parsed = raw ? JSON.parse(raw) : null;
+	                    if (parsed && typeof parsed === 'object') {
+	                        state.settings = { ...DEFAULT, ...parsed };
+	                    } else {
+	                        state.settings = { ...DEFAULT };
+	                    }
+	                } catch {
+	                    state.settings = { ...DEFAULT };
+	                }
+	            };
+	            const saveSettings = () => {
+	                try { localStorage.setItem(POSTPROCESS_SAVE_SETTINGS_KEY, JSON.stringify(state.settings)); } catch { }
+	            };
+	
+	            const resetWorking = () => {
+	                state.working = state.original ? __deepClone(state.original) : null;
+	                state.summary = state.working ? __summarizeImportedSaveForPostprocess(state.working) : null;
+	            };
+	
+	            // Initialize once
+	            loadSettings();
+	
+	            return { state, DEFAULT, loadSettings, saveSettings, resetWorking };
+	        })();
+	
+	        function __summarizeImportedSaveForPostprocess(obj) {
+	            const out = {
+	                kind: '',
+	                typesCount: 0,
+	                problemsCount: 0,
+	                missingAnswers: 0,
+	                missingExplanations: 0,
+	                subgroupTagged: 0,
+	                hasGuide: false,
+	            };
+	            try {
+	                const extracted = __extractTypesFromImportedSave(obj);
+	                out.kind = extracted.kind || '';
+	                const types = extracted.types || {};
+	                out.typesCount = Object.keys(types).length;
+	                for (const listRaw of Object.values(types)) {
+	                    const list = Array.isArray(listRaw) ? listRaw : [];
+	                    out.problemsCount += list.length;
+	                    list.forEach(p => {
+	                        const ans = String(p?.official_answer ?? p?.officialAnswer ?? '').trim();
+	                        const exp = String(p?.official_explanation ?? p?.officialExplanation ?? '').trim();
+	                        if (!ans) out.missingAnswers++;
+	                        if (!exp) out.missingExplanations++;
+	                        const sg = String(p?.subgroup_tag ?? p?.subgroupTag ?? '').trim();
+	                        if (sg) out.subgroupTagged++;
+	                    });
+	                }
+	            } catch { }
+	            try {
+	                out.hasGuide = !!(obj && obj.__fmm_bundle__ === 1 && obj.items && obj.items.fmm_source && obj.items.fmm_source.value);
+	            } catch { }
+	            return out;
+	        }
+	
+	        function renderSavePostprocessing() {
+	            const st = __postprocessSave.state;
+	            const s = st.settings || {};
+	            const sum = st.summary || null;
+	            const disabled = !st.working || st.run.running;
+	            const canRunFill = !!st.working;
+	
+	            const summaryHtml = sum ? `
+	              <div class="ui-panel" style="margin-top:0.75rem;">
+	                <div style="font-size:12px; color:var(--text-2); font-family:monospace;">
+	                  <div>kind: ${escapeHtmlForInnerHTML(sum.kind || '-')}</div>
+	                  <div>types: ${sum.typesCount} · problems: ${sum.problemsCount}</div>
+	                  <div>missing official_answer: ${sum.missingAnswers} · missing official_explanation: ${sum.missingExplanations}</div>
+	                  <div>subgroup_tag present: ${sum.subgroupTagged}</div>
+	                  <div>guide attached (fmm_source): ${sum.hasGuide ? 'YES' : 'NO'}</div>
+	                </div>
+	              </div>
+	            ` : '';
+	
+	            const runStatus = st.run.status ? `<div class="muted" style="margin-top:6px;">${escapeHtmlForInnerHTML(st.run.status)}</div>` : '';
+	            const runProgress = st.run.progress ? `<div class="muted" style="margin-top:4px; font-family:monospace; font-size:12px; white-space:pre-wrap;">${escapeHtmlForInnerHTML(st.run.progress)}</div>` : '';
+	
+	            return `
+	              <div class="ui-panel">
+	                <h3 style="color: var(--accent); margin-top:0;">${escapeHtmlForInnerHTML(__tGui('tabPostprocessSave'))}</h3>
+	                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+	                  <button class="ui-btn" id="postprocess-load-btn">${escapeHtmlForInnerHTML(__tGui('ppLoadSaveButton'))}</button>
+	                  <button class="ui-btn" id="postprocess-reset-btn" ${!st.original || st.run.running ? 'disabled' : ''}>${escapeHtmlForInnerHTML(__tGui('ppResetWorkingButton'))}</button>
+	                  <button class="ui-btn" id="postprocess-download-btn" ${!st.working ? 'disabled' : ''}>${escapeHtmlForInnerHTML(__tGui('ppDownloadWorkingButton'))}</button>
+	                  <button class="ui-btn" id="postprocess-stop-btn" ${!st.run.running ? 'disabled' : ''}>${escapeHtmlForInnerHTML(__tGui('ppStopButton'))}</button>
+	                  <span class="muted" style="font-size:12px;">${escapeHtmlForInnerHTML(st.fileName ? (__tGuiFmt('ppLoadedFileFmt', { name: st.fileName })) : __tGui('ppNoFileLoaded'))}</span>
+	                </div>
+	                ${summaryHtml}
+	
+	                <div class="ui-panel" style="margin-top:0.75rem;">
+	                  <h4 style="margin:0 0 6px 0;">${escapeHtmlForInnerHTML(__tGui('ppSubgroupSectionTitle'))}</h4>
+	                  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+	                    <label class="muted" style="font-size:12px;">${escapeHtmlForInnerHTML(__tGui('ppChunkTokensLabel'))}
+	                      <input class="ui-input" id="pp-subgroup-chunk-tokens" type="number" min="1000" max="400000"
+	                        value="${escapeHtmlForInnerHTML(String(s.subgroupChunkTokens || DEFAULT_CHUNK_TOKENS))}"
+	                        style="width:140px; margin-left:6px;">
+	                    </label>
+	                    <button class="ui-btn" id="postprocess-run-subgroup-btn" ${disabled ? 'disabled' : ''}>${escapeHtmlForInnerHTML(__tGui('ppRunSubgroupButton'))}</button>
+	                  </div>
+	                </div>
+	
+	                <div class="ui-panel" style="margin-top:0.75rem;">
+	                  <h4 style="margin:0 0 6px 0;">${escapeHtmlForInnerHTML(__tGui('ppFillSectionTitle'))}</h4>
+	                  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+	                    <label class="muted" style="font-size:12px;">
+	                      <input type="checkbox" id="pp-fill-answers" ${s.fillAnswers ? 'checked' : ''}>
+	                      ${escapeHtmlForInnerHTML(__tGui('ppFillAnswersLabel'))}
+	                    </label>
+	                    <label class="muted" style="font-size:12px;">
+	                      <input type="checkbox" id="pp-fill-explanations" ${s.fillExplanations ? 'checked' : ''}>
+	                      ${escapeHtmlForInnerHTML(__tGui('ppFillExplanationsLabel'))}
+	                    </label>
+	                    <label class="muted" style="font-size:12px;">
+	                      <input type="checkbox" id="pp-overwrite-answers" ${s.overwriteAnswers ? 'checked' : ''}>
+	                      ${escapeHtmlForInnerHTML(__tGui('ppOverwriteAnswersLabel'))}
+	                    </label>
+	                    <label class="muted" style="font-size:12px;">
+	                      <input type="checkbox" id="pp-overwrite-explanations" ${s.overwriteExplanations ? 'checked' : ''}>
+	                      ${escapeHtmlForInnerHTML(__tGui('ppOverwriteExplanationsLabel'))}
+	                    </label>
+	                  </div>
+	                  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px;">
+	                    <label class="muted" style="font-size:12px;">
+	                      <input type="checkbox" id="pp-include-type-guide" ${s.includeTypeGuide ? 'checked' : ''}>
+	                      ${escapeHtmlForInnerHTML(__tGui('ppIncludeTypeGuideLabel'))}
+	                    </label>
+	                    <label class="muted" style="font-size:12px;">${escapeHtmlForInnerHTML(__tGui('ppTypeGuideMaxCharsLabel'))}
+	                      <input class="ui-input" id="pp-type-guide-max-chars" type="number" min="200" max="200000"
+	                        value="${escapeHtmlForInnerHTML(String(s.typeGuideMaxChars || 12000))}"
+	                        style="width:140px; margin-left:6px;">
+	                    </label>
+	                    <label class="muted" style="font-size:12px;">${escapeHtmlForInnerHTML(__tGui('ppChunkTokensLabel'))}
+	                      <input class="ui-input" id="pp-fill-chunk-tokens" type="number" min="1000" max="400000"
+	                        value="${escapeHtmlForInnerHTML(String(s.fillChunkTokens || DEFAULT_CHUNK_TOKENS))}"
+	                        style="width:140px; margin-left:6px;">
+	                    </label>
+	                    <label class="muted" style="font-size:12px;">
+	                      <input type="checkbox" id="pp-fill-ddg" ${s.useDuckDuckGo ? 'checked' : ''}>
+	                      ${escapeHtmlForInnerHTML(__tGui('ppUseDuckDuckGoLabel'))}
+	                    </label>
+	                  </div>
+	                  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+	                    <button class="ui-btn" id="postprocess-run-fill-btn" ${(!canRunFill || st.run.running) ? 'disabled' : ''}>${escapeHtmlForInnerHTML(__tGui('ppRunFillButton'))}</button>
+	                    <button class="ui-btn" id="postprocess-run-both-btn" ${(!canRunFill || st.run.running) ? 'disabled' : ''}>${escapeHtmlForInnerHTML(__tGui('ppRunBothButton'))}</button>
+	                  </div>
+	                  <div class="muted" style="margin-top:6px; font-size:12px; line-height:1.4;">
+	                    ${escapeHtmlForInnerHTML(__tGui('ppFillHelpText'))}
+	                  </div>
+	                </div>
+	
+	                ${runStatus}
+	                ${runProgress}
+	              </div>
+	            `;
+	        }
 
 
         // Download final manual as .txt
@@ -13128,16 +13709,153 @@ ${explanationWithGlobal}
             }
         });
 
-        // Phase1 tool: subgroupify an existing renderer save (.json)
-        document.body.addEventListener('click', (e) => {
-            if (!e.target || e.target.id !== 'subgroupify-save-btn') return;
-            const input = getEl('subgroupify-save-input');
-            if (input) input.click();
-        });
+	        // Phase1 tool: subgroupify an existing renderer save (.json)
+	        document.body.addEventListener('click', (e) => {
+	            if (!e.target || e.target.id !== 'subgroupify-save-btn') return;
+	            const input = getEl('subgroupify-save-input');
+	            if (input) input.click();
+	        });
 
-        function __downloadJsonFile(filename, obj) {
-            const jsonString = JSON.stringify(obj, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
+	        // Save postprocessing: load input trigger
+	        document.body.addEventListener('click', (e) => {
+	            if (!e.target || e.target.id !== 'postprocess-load-btn') return;
+	            const input = getEl('postprocess-save-input');
+	            if (input) input.click();
+	        });
+
+	        // Save postprocessing: settings sync
+	        document.body.addEventListener('change', (e) => {
+	            const id = e?.target?.id || '';
+	            const s = __postprocessSave?.state?.settings;
+	            if (!s) return;
+	            const clampTokens = (v) => __clampInt(v, { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS });
+	            const clampChars = (v) => __clampInt(v, { min: 200, max: 200000, fallback: 12000 });
+	
+	            if (id === 'pp-subgroup-chunk-tokens') s.subgroupChunkTokens = clampTokens(e.target.value);
+	            else if (id === 'pp-fill-chunk-tokens') s.fillChunkTokens = clampTokens(e.target.value);
+	            else if (id === 'pp-type-guide-max-chars') s.typeGuideMaxChars = clampChars(e.target.value);
+	            else if (id === 'pp-fill-answers') s.fillAnswers = !!e.target.checked;
+	            else if (id === 'pp-fill-explanations') s.fillExplanations = !!e.target.checked;
+	            else if (id === 'pp-overwrite-answers') s.overwriteAnswers = !!e.target.checked;
+	            else if (id === 'pp-overwrite-explanations') s.overwriteExplanations = !!e.target.checked;
+	            else if (id === 'pp-include-type-guide') s.includeTypeGuide = !!e.target.checked;
+	            else if (id === 'pp-fill-ddg') s.useDuckDuckGo = !!e.target.checked;
+	            else return;
+	
+	            try { __postprocessSave.saveSettings(); } catch { }
+	            try { renderActiveProcess(); } catch { }
+	        });
+
+	        // Save postprocessing: actions
+	        document.body.addEventListener('click', async (e) => {
+	            const id = e?.target?.id || '';
+	            if (!id || !id.startsWith('postprocess-')) return;
+	            const st = __postprocessSave.state;
+	            if (!st) return;
+	
+	            if (id === 'postprocess-reset-btn') {
+	                if (!st.original || st.run.running) return;
+	                __postprocessSave.resetWorking();
+	                renderActiveProcess();
+	                logger.success('Postprocess', 'Reset working copy to original.');
+	                return;
+	            }
+	            if (id === 'postprocess-download-btn') {
+	                if (!st.working) return;
+	                try {
+	                    const stamp = new Date().toISOString().slice(0, 10);
+	                    const base = (st.fileName || 'save').replace(/\.[^.]+$/, '') || 'save';
+	                    __downloadJsonFile(`${base}_postprocessed_${stamp}.json`, st.working);
+	                    logger.success('Postprocess', 'Downloaded working save.');
+	                } catch (err) {
+	                    logger.error('Postprocess', `Download failed: ${err?.message || err}`);
+	                    alert(__tGui('exportFailedCheckLogsAlert'));
+	                }
+	                return;
+	            }
+	            if (id === 'postprocess-stop-btn') {
+	                if (!st.run.running) return;
+	                st.run.stop = true;
+	                try { processController.stop = true; } catch { }
+	                st.run.status = __tGui('ppStopRequested');
+	                renderActiveProcess();
+	                logger.warn('Postprocess', 'Stop requested (will stop after current call).');
+	                return;
+	            }
+	
+	            if (!st.working) return;
+	            if (st.run.running) return;
+	
+	            const runWrap = async (label, fn) => {
+	                st.run.running = true;
+	                st.run.stop = false;
+	                st.run.status = label;
+	                st.run.progress = '';
+	                try { processController.stop = false; } catch { }
+	                renderActiveProcess();
+	                try {
+	                    await fn();
+	                } catch (err) {
+	                    const msg = err?.message || String(err || '');
+	                    const low = msg.toLowerCase();
+	                    const isCancelled =
+	                        processController.stop ||
+	                        low.includes('cancelled') ||
+	                        low.includes('canceled') ||
+	                        low.includes('operation cancelled') ||
+	                        low.includes('stopped by user');
+	                    st.run.status = isCancelled ? __tGui('ppStopRequested') : msg;
+	                    logger.error('Postprocess', `Run failed: ${msg}`);
+	                    if (!isCancelled) alert(__tGui('exportFailedCheckLogsAlert'));
+	                } finally {
+	                    st.run.running = false;
+	                    renderActiveProcess();
+	                }
+	            };
+	
+	            if (id === 'postprocess-run-subgroup-btn') {
+	                await runWrap(__tGui('ppRunningSubgroup'), async () => {
+	                    const tok = st.settings?.subgroupChunkTokens;
+	                    const res = await subgroupifyImportedSaveObject(st.working, { chunkTokens: tok });
+	                    st.working = res.updated;
+	                    st.summary = __summarizeImportedSaveForPostprocess(st.working);
+	                    st.run.status = __tGuiFmt('ppDoneSubgroupFmt', { n: res.assigned || 0 });
+	                    logger.success('Postprocess', `Subgroupify done. assigned=${res.assigned || 0}`);
+	                });
+	                return;
+	            }
+	            if (id === 'postprocess-run-fill-btn') {
+	                await runWrap(__tGui('ppRunningFill'), async () => {
+	                    const res = await fillAnswersForImportedSaveObject(st.working, { settings: st.settings });
+	                    st.working = res.updated;
+	                    st.summary = __summarizeImportedSaveForPostprocess(st.working);
+	                    st.run.status = __tGuiFmt('ppDoneFillFmt', { a: res.filledAnswers || 0, e: res.filledExplanations || 0 });
+	                    logger.success('Postprocess', `Answer fill done. answers=${res.filledAnswers || 0}, expl=${res.filledExplanations || 0}`);
+	                });
+	                return;
+	            }
+	            if (id === 'postprocess-run-both-btn') {
+	                await runWrap(__tGui('ppRunningBoth'), async () => {
+	                    const tok = st.settings?.subgroupChunkTokens;
+	                    const sg = await subgroupifyImportedSaveObject(st.working, { chunkTokens: tok });
+	                    st.working = sg.updated;
+	                    st.summary = __summarizeImportedSaveForPostprocess(st.working);
+	                    st.run.progress = __tGuiFmt('ppProgressAfterSubgroupFmt', { n: sg.assigned || 0 });
+	                    renderActiveProcess();
+	
+	                    const fill = await fillAnswersForImportedSaveObject(st.working, { settings: st.settings });
+	                    st.working = fill.updated;
+	                    st.summary = __summarizeImportedSaveForPostprocess(st.working);
+	                    st.run.status = __tGuiFmt('ppDoneBothFmt', { sg: sg.assigned || 0, a: fill.filledAnswers || 0, e: fill.filledExplanations || 0 });
+	                    logger.success('Postprocess', `Both done. subgroup=${sg.assigned || 0}, answers=${fill.filledAnswers || 0}, expl=${fill.filledExplanations || 0}`);
+	                });
+	                return;
+	            }
+	        });
+
+	        function __downloadJsonFile(filename, obj) {
+	            const jsonString = JSON.stringify(obj, null, 2);
+	            const blob = new Blob([jsonString], { type: 'application/json' });
             const a = document.createElement('a');
             a.download = filename;
             a.href = URL.createObjectURL(blob);
@@ -13208,6 +13926,363 @@ ${explanationWithGlobal}
 
             logger.success('SubgroupifySave', `Updated save file: assigned ${assigned} problem(s) to subgroup tags.`);
             return { updated: cloned, assigned };
+        }
+
+        function __stripLlmBannerFromExplanation(text) {
+            let s = String(text ?? '');
+            // Remove our own first-line banners to avoid stacking on repeated runs.
+            // Examples:
+            // - "> ⚠️ LLM 생성: 정답만 (공식 아님)"
+            // - "> ⚠️ LLM-generated: answer only (not official)"
+            // - legacy: "> ⚠️ LLM 생성 해설 (공식 아님)"
+            const lines = s.split(/\r?\n/);
+            if (!lines.length) return s;
+            const first = String(lines[0] || '').trim();
+            const isBanner = /^>\s*⚠️\s*/.test(first) && /llm/i.test(first);
+            if (!isBanner) return s.trim();
+            // Drop first line, then drop one optional blank line.
+            const rest = lines.slice(1);
+            if (rest.length && String(rest[0] || '').trim() === '') rest.shift();
+            return rest.join('\n').trim();
+        }
+
+        function __makeLlmProvenanceBanner({ guiLang, answerGenerated, explanationGenerated }) {
+            const lang = (guiLang === 'ko') ? 'ko' : 'en';
+            const mode = (answerGenerated && explanationGenerated)
+                ? 'both'
+                : (answerGenerated ? 'answer_only' : 'explanation_only');
+            if (lang === 'ko') {
+                const label = (mode === 'both') ? '정답+해설' : (mode === 'answer_only' ? '정답만' : '해설만');
+                return `> ⚠️ LLM 생성: ${label} (공식 아님)\n\n`;
+            }
+            const label = (mode === 'both') ? 'answer + explanation' : (mode === 'answer_only' ? 'answer only' : 'explanation only');
+            return `> ⚠️ LLM-generated: ${label} (not official)\n\n`;
+        }
+
+        function __extractTypeGuideSectionsFromFmmSource(markdown) {
+            const text = String(markdown ?? '');
+            const lines = text.split(/\r?\n/);
+            const sections = [];
+            let cur = null;
+            for (const line of lines) {
+                const m = String(line || '').match(/^\s*#\s+(.+?)\s*$/);
+                if (m) {
+                    if (cur) sections.push(cur);
+                    cur = { title: String(m[1] || '').trim(), body: [] };
+                    continue;
+                }
+                if (cur) cur.body.push(String(line || ''));
+            }
+            if (cur) sections.push(cur);
+
+            const byNormTitle = new Map();
+            sections.forEach(sec => {
+                const title = String(sec?.title || '').trim();
+                if (!title) return;
+                const body = String((sec?.body || []).join('\n')).trim();
+                byNormTitle.set(__normalizeTitleForMatch(title), body);
+            });
+            return { byNormTitle, titles: sections.map(s => s.title).filter(Boolean) };
+        }
+
+        function __normalizeAnswerForCompare(ans) {
+            let s = String(ans ?? '').trim();
+            if (!s) return '';
+            const circled = {
+                '①': '1', '②': '2', '③': '3', '④': '4', '⑤': '5',
+                '⑥': '6', '⑦': '7', '⑧': '8', '⑨': '9', '⑩': '10',
+            };
+            s = s.replace(/[①②③④⑤⑥⑦⑧⑨⑩]/g, (ch) => circled[ch] || ch);
+            s = s.replace(/[()\[\]{}]/g, '');
+            s = s.replace(/\s+/g, '');
+            s = s.toUpperCase();
+            return s;
+        }
+
+        function __getProblemOfficialAnswer(p) {
+            return String(p?.official_answer ?? p?.officialAnswer ?? '').trim();
+        }
+
+        function __setProblemOfficialAnswer(p, v) {
+            const val = String(v ?? '').trim();
+            if (!p || typeof p !== 'object') return;
+            if ('official_answer' in p || !('officialAnswer' in p)) p.official_answer = val;
+            if ('officialAnswer' in p) p.officialAnswer = val;
+        }
+
+        function __getProblemOfficialExplanation(p) {
+            return String(p?.official_explanation ?? p?.officialExplanation ?? '').trim();
+        }
+
+        function __setProblemOfficialExplanation(p, v) {
+            const val = String(v ?? '').trim();
+            if (!p || typeof p !== 'object') return;
+            if ('official_explanation' in p || !('officialExplanation' in p)) p.official_explanation = val;
+            if ('officialExplanation' in p) p.officialExplanation = val;
+        }
+
+        function __getProblemQuestionText(p) {
+            return String(p?.question_text ?? p?.questionText ?? p?.question ?? '').trim();
+        }
+
+        function __getProblemAnswerChoices(p) {
+            return String(p?.answer_choices ?? p?.answerChoices ?? p?.choices ?? '').trim();
+        }
+
+        async function fillAnswersForImportedSaveObject(obj, { settings } = {}) {
+            const extracted = __extractTypesFromImportedSave(obj);
+            const types = extracted.types || {};
+
+            const s = (settings && typeof settings === 'object') ? settings : {};
+            const fillAnswers = (typeof s.fillAnswers === 'boolean') ? s.fillAnswers : true;
+            const fillExplanations = (typeof s.fillExplanations === 'boolean') ? s.fillExplanations : true;
+            const overwriteAnswers = !!s.overwriteAnswers;
+            const overwriteExplanations = !!s.overwriteExplanations;
+            const includeTypeGuide = (typeof s.includeTypeGuide === 'boolean') ? s.includeTypeGuide : true;
+            const typeGuideMaxChars = __clampInt(s.typeGuideMaxChars, { min: 200, max: 200000, fallback: 12000 });
+            const maxT = __clampInt(s.fillChunkTokens, { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS });
+            const useDdg = !!s.useDuckDuckGo;
+
+            if (!fillAnswers && !fillExplanations) {
+                logger.warn('PostprocessFill', 'Both fillAnswers and fillExplanations are off; nothing to do.');
+                return { updated: obj, filledAnswers: 0, filledExplanations: 0, bannered: 0, skipped: 0 };
+            }
+
+            const language = __getGuideLanguageFromUi();
+            const guiLang = (getEl('gui-lang-select')?.value === 'ko') ? 'ko' : 'en';
+
+            let guideSections = null;
+            if (includeTypeGuide && extracted.kind === 'bundle') {
+                try {
+                    const guideText = extracted?.root?.items?.fmm_source?.value;
+                    if (guideText) guideSections = __extractTypeGuideSectionsFromFmmSource(String(guideText));
+                } catch { }
+            }
+
+            const ddgCache = new Map();
+
+            let filledAnswersCount = 0;
+            let filledExplanationsCount = 0;
+            let banneredCount = 0;
+            let skipped = 0;
+
+            const typeNames = Object.keys(types || {});
+            if (!typeNames.length) throw new Error('No types found in save file.');
+
+            for (const typeName of typeNames) {
+                if (processController.stop) throw new Error('Operation cancelled.');
+                const listRaw = types[typeName];
+                const list = Array.isArray(listRaw) ? listRaw : [];
+                if (!list.length) continue;
+
+                const targets = [];
+                for (const p of list) {
+                    const qid = String(p?.qid || '').trim();
+                    if (!qid) continue;
+                    const curAns = __getProblemOfficialAnswer(p);
+                    const curExp = __getProblemOfficialExplanation(p);
+
+                    const needAnswer = fillAnswers && (overwriteAnswers || !curAns);
+                    const needExp = fillExplanations && (overwriteExplanations || !curExp);
+                    if (!needAnswer && !needExp) continue;
+
+                    // If user asked for explanation-only fill, require an existing official answer.
+                    if (needExp && !fillAnswers && !curAns) { skipped++; continue; }
+
+                    const lockAnswer = !!curAns && !(fillAnswers && overwriteAnswers);
+
+                    targets.push({
+                        qid,
+                        p,
+                        needAnswer,
+                        needExp,
+                        lockAnswer,
+                        curAns,
+                        curExp,
+                        __ddg: '',
+                    });
+                }
+                if (!targets.length) continue;
+
+                // Optional: fetch DDG snippets as extra context
+                if (useDdg) {
+                    const jobs = targets.map((t, idx) => ({ idx, t }));
+                    async function processJob(job, workerId) {
+                        const ctx = `DDG-PP-${__normalizeTitleForMatch(typeName)}-W${workerId}`;
+                        const q = __answerFillBuildDdgQuery({
+                            qid: job.t.qid,
+                            question_text: __getProblemQuestionText(job.t.p),
+                            answer_choices: __getProblemAnswerChoices(job.t.p),
+                        });
+                        if (!q) return;
+                        if (ddgCache.has(q)) { job.t.__ddg = ddgCache.get(q); return; }
+                        try {
+                            const snip = await __ddgInstantAnswer(q);
+                            ddgCache.set(q, snip);
+                            job.t.__ddg = snip;
+                        } catch (e) {
+                            logger.warn(ctx, `DuckDuckGo lookup failed: ${e?.message || e}`);
+                        }
+                    }
+                    await runWithConcurrency(jobs, processJob, Math.max(1, Math.min(6, getWorkerConcurrency())));
+                }
+
+                const guideBody = (() => {
+                    if (!includeTypeGuide || !guideSections?.byNormTitle) return '';
+                    const norm = __normalizeTitleForMatch(typeName);
+                    const body = guideSections.byNormTitle.get(norm) || '';
+                    return __answerFillClipText(body, typeGuideMaxChars);
+                })();
+
+                const headerText = (() => {
+                    const parts = [];
+                    parts.push(`TYPE: ${typeName}`);
+                    if (guideBody) parts.push(`\n[TYPE GUIDE]\n${guideBody}`);
+                    parts.push(
+                        `\nRULES:\n` +
+                        `- Use the given QID exactly.\n` +
+                        `- Output ONLY <data>...</data>.\n` +
+                        `- If an item includes OFFICIAL ANSWER, copy it EXACTLY into <answer>.\n`
+                    );
+                    return parts.join('\n').trim();
+                })();
+
+                const overheadTok = __estimateTokens(headerText + '\n\n');
+                const perBatchMaxT = Math.max(1000, maxT - overheadTok);
+
+                const items = targets.map(t => {
+                    const qText = __answerFillClipText(__answerFillStripDataUris(__getProblemQuestionText(t.p)), 6500);
+                    const cText = __answerFillClipText(__answerFillStripDataUris(__getProblemAnswerChoices(t.p)), 1600);
+                    const ddg = String(t.__ddg || '').trim();
+                    const ref = ddg ? `\n\n[DuckDuckGo Instant Answer]\n${ddg}` : '';
+                    const lock = t.lockAnswer ? `\n\nOFFICIAL ANSWER (copy EXACTLY): ${t.curAns}` : '';
+                    const block =
+                        `QID: ${t.qid}\n` +
+                        `QUESTION:\n${qText || '(empty)'}\n` +
+                        (cText ? `\nCHOICES:\n${cText}\n` : '') +
+                        lock +
+                        ref;
+                    return { qid: t.qid, t, text: block, estTokens: __estimateTokens(block) };
+                }).filter(it => it.qid);
+
+                const batches = __packAnswerFillItemsByTokens(items, perBatchMaxT);
+                logger.info('PostprocessFill', `Type "${typeName}": targets=${items.length} → batches=${batches.length} (maxTokens≈${maxT}, overhead≈${overheadTok}, ddg=${useDdg ? 'on' : 'off'})`);
+
+                async function processBatch(batch, batchIndex) {
+                    const ctx = `PostprocessFill-${__normalizeTitleForMatch(typeName)}-B${batchIndex}`;
+                    const list = (batch && Array.isArray(batch.items)) ? batch.items : [];
+                    if (!list.length) return;
+
+                    const userText =
+                        `${headerText}\n\n` +
+                        `Solve ALL problems below.\n\n` +
+                        list.map(x => x.text).join('\n\n---\n\n');
+
+                    const payload = {
+                        model: getApiConfig().model,
+                        messages: [
+                            { role: 'system', content: __renderPromptTemplateText(currentPrompts.answer_filler.system, { language }) },
+                            { role: 'user', content: userText }
+                        ]
+                    };
+
+                    const expected = new Set(list.map(x => x.qid));
+                    const locked = new Map(list.map(x => [x.qid, x?.t?.lockAnswer ? (x?.t?.curAns || '') : '']).filter(([_, v]) => String(v || '').trim()));
+
+                    const MAX_TRIES = 3;
+                    let lastErr = '';
+                    for (let tryNo = 1; tryNo <= MAX_TRIES; tryNo++) {
+                        if (processController.stop) throw new Error('Operation cancelled.');
+                        try {
+                            const parsed = await requestAndParseDataEnvelope(payload, `${ctx}-T${tryNo}`, { phase: 'phase0' });
+                            const byQid = new Map();
+                            parsed.forEach(it => {
+                                const v = String(it?.value || '');
+                                const qid = String(parseTag(v, 'qid') || '').trim();
+                                const answer = String(parseTag(v, 'answer') || '').trim();
+                                const explanation = String(parseTag(v, 'explanation') || '').trim();
+                                const confRaw = String(parseTag(v, 'confidence') || '').trim();
+                                const conf = (() => { const n = parseFloat(confRaw); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : null; })();
+                                if (!qid) return;
+                                byQid.set(qid, { answer, explanation, confidence: conf });
+                            });
+
+                            const missing = [];
+                            expected.forEach(qid => {
+                                const rec = byQid.get(qid);
+                                if (!rec) { missing.push(`${qid}:no_item`); return; }
+                                if (!String(rec.answer || '').trim()) missing.push(`${qid}:empty_answer`);
+                                if (!String(rec.explanation || '').trim()) missing.push(`${qid}:empty_explanation`);
+                                const lockAns = locked.get(qid);
+                                if (lockAns) {
+                                    const a0 = __normalizeAnswerForCompare(lockAns);
+                                    const a1 = __normalizeAnswerForCompare(rec.answer);
+                                    if (a0 && a1 && a0 !== a1) missing.push(`${qid}:answer_mismatch`);
+                                }
+                            });
+                            if (missing.length) throw new Error(`Incomplete batch output: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? '...' : ''}`);
+
+                            // Apply
+                            list.forEach(x => {
+                                const qid = x.qid;
+                                const rec = byQid.get(qid);
+                                if (!rec) return;
+                                const t = x.t;
+                                const p = t?.p;
+                                if (!p || typeof p !== 'object') return;
+
+                                const beforeAns = __getProblemOfficialAnswer(p);
+                                const beforeExp = __getProblemOfficialExplanation(p);
+
+                                let didAnswer = false;
+                                let didExp = false;
+
+                                if (t.needAnswer && String(rec.answer || '').trim()) {
+                                    __setProblemOfficialAnswer(p, rec.answer);
+                                    p.official_answer_source = 'llm';
+                                    p.llm_answer_confidence = rec.confidence;
+                                    filledAnswersCount++;
+                                    didAnswer = true;
+                                } else if (t.lockAnswer && beforeAns) {
+                                    __setProblemOfficialAnswer(p, beforeAns);
+                                }
+
+                                if (t.needExp && String(rec.explanation || '').trim()) {
+                                    const body = __stripLlmBannerFromExplanation(rec.explanation);
+                                    const banner = __makeLlmProvenanceBanner({ guiLang, answerGenerated: didAnswer, explanationGenerated: true });
+                                    __setProblemOfficialExplanation(p, (banner + body).trim());
+                                    p.official_explanation_source = 'llm';
+                                    filledExplanationsCount++;
+                                    didExp = true;
+                                    banneredCount++;
+                                }
+
+                                if (didAnswer && !didExp) {
+                                    const body = __stripLlmBannerFromExplanation(beforeExp);
+                                    const banner = __makeLlmProvenanceBanner({ guiLang, answerGenerated: true, explanationGenerated: false });
+                                    __setProblemOfficialExplanation(p, (banner + (body ? body : '')).trim());
+                                    if (!body) p.official_explanation_source = 'llm_meta';
+                                    banneredCount++;
+                                }
+                            });
+                            return;
+                        } catch (e) {
+                            lastErr = e?.message || String(e || '');
+                            logger.warn('PostprocessFill', `${ctx}: try ${tryNo}/${MAX_TRIES} failed: ${lastErr}`);
+                            if (tryNo >= MAX_TRIES) throw e;
+                        }
+                    }
+                    throw new Error(lastErr || 'Postprocess fill failed.');
+                }
+
+                for (let i = 0; i < batches.length; i++) {
+                    if (processController.stop) throw new Error('Operation cancelled.');
+                    await processBatch(batches[i], i);
+                }
+            }
+
+            logger.success('PostprocessFill', `Done. filledAnswers=${filledAnswersCount}, filledExplanations=${filledExplanationsCount}, bannered=${banneredCount}, skipped=${skipped}`);
+            return { updated: obj, filledAnswers: filledAnswersCount, filledExplanations: filledExplanationsCount, bannered: banneredCount, skipped };
         }
 
         function __buildTypeProblemsBundleForExport() {
@@ -13756,6 +14831,12 @@ ${explanationWithGlobal}
 	                logClearButton: 'Clear view',
 	                formatErrorsClearButton: 'Clear',
 	                formatErrorsDownloadButton: 'Download (JSON)',
+	                fullCaptureEnabledLabel: 'Full API capture (IndexedDB)',
+	                fullCaptureExportButton: 'Export full log (JSONL)',
+	                fullCaptureClearButton: 'Clear full log',
+	                fullCaptureStatusDisabled: 'disabled',
+	                fullCaptureStatusEnabledFmt: 'enabled • records {n} • pending {p}',
+	                fullCaptureStatusErrorFmt: 'error: {error}',
 	
 	                finalGuideTitle: 'Final guide',
 	                finalGuideNotReady: 'Not completed yet.',
@@ -13772,6 +14853,35 @@ ${explanationWithGlobal}
 	                p1TypeBundleDownloadButton: 'Download types + original problems (.json)',
 	                p1RunSubgroupingButton: 'Run subgrouping (experimental)',
 	                p1SubgroupifySaveButton: 'Subgroupify existing save (.json)',
+	                tabPostprocessSave: 'Save postprocessing',
+	                ppLoadSaveButton: 'Load save (.json)',
+	                ppResetWorkingButton: 'Reset working',
+	                ppDownloadWorkingButton: 'Download working',
+	                ppStopButton: 'Stop',
+	                ppLoadedFileFmt: 'Loaded: {name}',
+	                ppNoFileLoaded: 'No file loaded.',
+	                ppSubgroupSectionTitle: 'Subgroupify (subgroup_tag)',
+	                ppChunkTokensLabel: 'Chunk tokens (approx.)',
+	                ppRunSubgroupButton: 'Run subgroupify',
+	                ppFillSectionTitle: 'Fill answers/explanations',
+	                ppFillAnswersLabel: 'Fill answers',
+	                ppFillExplanationsLabel: 'Fill explanations',
+	                ppOverwriteAnswersLabel: 'Overwrite answers',
+	                ppOverwriteExplanationsLabel: 'Overwrite explanations',
+	                ppIncludeTypeGuideLabel: 'Include type guide (fmm_source)',
+	                ppTypeGuideMaxCharsLabel: 'Type guide max chars',
+	                ppUseDuckDuckGoLabel: 'Use DuckDuckGo Instant Answer',
+	                ppRunFillButton: 'Run fill',
+	                ppRunBothButton: 'Run both',
+	                ppFillHelpText: 'Fills official_answer / official_explanation. Also prepends an LLM provenance banner to official_explanation.',
+	                ppStopRequested: 'Stop requested.',
+	                ppRunningSubgroup: 'Running subgroupify...',
+	                ppDoneSubgroupFmt: 'Done. Assigned {n} problems.',
+	                ppRunningFill: 'Filling answers/explanations...',
+	                ppDoneFillFmt: 'Done. Filled answers {a}, explanations {e}.',
+	                ppRunningBoth: 'Running subgroupify + fill...',
+	                ppProgressAfterSubgroupFmt: 'Subgroupify done. assigned={n} → running fill...',
+	                ppDoneBothFmt: 'Done. subgroup={sg}, answers={a}, explanations={e}.',
 
 	                p2ProgressSummaryTitle: 'Progress summary',
 	                p2ProgressTotalFmt: 'Total {n}',
@@ -14089,6 +15199,12 @@ ${explanationWithGlobal}
 	                logClearButton: '화면 지우기',
 	                formatErrorsClearButton: '초기화',
 	                formatErrorsDownloadButton: '다운로드(JSON)',
+	                fullCaptureEnabledLabel: '전체 API 로그 캡처 (IndexedDB)',
+	                fullCaptureExportButton: '전체 로그 내보내기 (JSONL)',
+	                fullCaptureClearButton: '전체 로그 삭제',
+	                fullCaptureStatusDisabled: '꺼짐',
+	                fullCaptureStatusEnabledFmt: '켜짐 • records {n} • pending {p}',
+	                fullCaptureStatusErrorFmt: '오류: {error}',
 	
 	                finalGuideTitle: '최종 요약본',
 	                finalGuideNotReady: '아직 완료되지 않았습니다.',
@@ -14105,6 +15221,35 @@ ${explanationWithGlobal}
 	                p1TypeBundleDownloadButton: '유형별 분류 결과 + 문제 원문 다운로드 (.json)',
 	                p1RunSubgroupingButton: '소그룹 생성 실행 (실험)',
 	                p1SubgroupifySaveButton: '기존 저장파일 소그룹화 (.json)',
+	                tabPostprocessSave: '저장파일 후처리',
+	                ppLoadSaveButton: '저장파일 불러오기 (.json)',
+	                ppResetWorkingButton: '작업본 리셋',
+	                ppDownloadWorkingButton: '작업본 다운로드',
+	                ppStopButton: '중지',
+	                ppLoadedFileFmt: '불러옴: {name}',
+	                ppNoFileLoaded: '불러온 파일 없음.',
+	                ppSubgroupSectionTitle: '소그룹 생성 (subgroup_tag)',
+	                ppChunkTokensLabel: '배치 토큰(대략)',
+	                ppRunSubgroupButton: '소그룹 생성 실행',
+	                ppFillSectionTitle: '정답/해설 채우기',
+	                ppFillAnswersLabel: '정답 채우기',
+	                ppFillExplanationsLabel: '해설 채우기',
+	                ppOverwriteAnswersLabel: '정답 덮어쓰기',
+	                ppOverwriteExplanationsLabel: '해설 덮어쓰기',
+	                ppIncludeTypeGuideLabel: '유형 가이드 첨부 (fmm_source)',
+	                ppTypeGuideMaxCharsLabel: '유형 가이드 최대 글자수',
+	                ppUseDuckDuckGoLabel: 'DuckDuckGo Instant Answer 참고',
+	                ppRunFillButton: '채우기 실행',
+	                ppRunBothButton: '둘다 실행',
+	                ppFillHelpText: 'official_answer / official_explanation 채우기. LLM 생성 여부는 official_explanation 상단 배너로 표시됩니다.',
+	                ppStopRequested: '중지 요청됨.',
+	                ppRunningSubgroup: '소그룹 생성 중...',
+	                ppDoneSubgroupFmt: '완료. {n}문제에 subgroup_tag를 넣었습니다.',
+	                ppRunningFill: '정답/해설 채우는 중...',
+	                ppDoneFillFmt: '완료. 정답 {a}개, 해설 {e}개 채움.',
+	                ppRunningBoth: '소그룹+채우기 실행 중...',
+	                ppProgressAfterSubgroupFmt: '소그룹 완료(assigned={n}) → 채우기 진행...',
+	                ppDoneBothFmt: '완료. subgroup={sg}, 정답={a}, 해설={e}.',
 
 	                p2ProgressSummaryTitle: '진행상황 요약',
 	                p2ProgressTotalFmt: '전체 {n}',
@@ -14878,6 +16023,32 @@ ${explanationWithGlobal}
             };
         }
 
+        function __refreshFullCaptureUi() {
+            const chk = getEl('full-capture-enabled-input');
+            const exportBtn = getEl('full-capture-export-btn');
+            const clearBtn = getEl('full-capture-clear-btn');
+            const statusEl = getEl('full-capture-status');
+            if (!chk && !exportBtn && !clearBtn && !statusEl) return;
+
+            const st = (() => { try { return __fullApiCapture.getStatus(); } catch { return null; } })();
+            const enabled = !!st?.enabled;
+            const n = Number(st?.approxCount || 0) || 0;
+            const p = Number(st?.pending || 0) || 0;
+            const err = String(st?.lastError || '').trim();
+
+            if (chk) chk.checked = enabled;
+            if (exportBtn) exportBtn.disabled = (n + p) <= 0;
+            if (clearBtn) clearBtn.disabled = (n + p) <= 0;
+            if (statusEl) {
+                if (!enabled) {
+                    statusEl.textContent = __tGui('fullCaptureStatusDisabled') + (n ? ` • records ${n}` : '');
+                } else {
+                    statusEl.textContent = __tGuiFmt('fullCaptureStatusEnabledFmt', { n, p });
+                }
+                if (err) statusEl.textContent += ` • ${__tGuiFmt('fullCaptureStatusErrorFmt', { error: err })}`;
+            }
+        }
+
         function __downloadTextFile(filename, text) {
             const blob = new Blob([String(text || '')], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
@@ -15032,6 +16203,45 @@ ${explanationWithGlobal}
             });
             getEl('download-logs-btn')?.addEventListener('click', downloadLogs);
             getEl('clear-logs-btn')?.addEventListener('click', () => logger.clearUi());
+            // Full API capture (IndexedDB)
+            try {
+                const capEnabledInput = getEl('full-capture-enabled-input');
+                const capExportBtn = getEl('full-capture-export-btn');
+                const capClearBtn = getEl('full-capture-clear-btn');
+
+                if (capEnabledInput) capEnabledInput.checked = __fullApiCapture?.isEnabled?.() === true;
+                capEnabledInput?.addEventListener('change', async () => {
+                    try { await __fullApiCapture.setEnabled(!!capEnabledInput.checked); } catch { }
+                    try { __refreshFullCaptureUi(); } catch { }
+                });
+                capExportBtn?.addEventListener('click', async () => {
+                    try {
+                        await __fullApiCapture.exportJsonl();
+                        logger.success('FullCapture', 'Exported full API capture.');
+                    } catch (err) {
+                        const msg = err?.message || String(err || '');
+                        logger.error('FullCapture', `Export failed: ${msg}`);
+                        alert(__tGui('exportFailedCheckLogsAlert'));
+                    } finally {
+                        try { __refreshFullCaptureUi(); } catch { }
+                    }
+                });
+                capClearBtn?.addEventListener('click', async () => {
+                    if (!confirm('전체 API 캡처 로그(IndexedDB)를 삭제하시겠습니까?')) return;
+                    try {
+                        await __fullApiCapture.clear();
+                        logger.success('FullCapture', 'Cleared full API capture.');
+                    } catch (err) {
+                        const msg = err?.message || String(err || '');
+                        logger.error('FullCapture', `Clear failed: ${msg}`);
+                        alert(__tGui('exportFailedCheckLogsAlert'));
+                    } finally {
+                        try { __refreshFullCaptureUi(); } catch { }
+                    }
+                });
+                try { __fullApiCapture.refreshCount().then(() => __refreshFullCaptureUi()).catch(() => __refreshFullCaptureUi()); } catch { }
+                try { __refreshFullCaptureUi(); } catch { }
+            } catch { }
             getEl('reset-call-breakdown-btn')?.addEventListener('click', () => {
                 successfulApiCallCount = 0;
                 updateApiCallCounter();
@@ -15044,36 +16254,60 @@ ${explanationWithGlobal}
 
             const startButton = getEl('start-button');
             const saveButton = getEl('save-button');
-            const loadButton = getEl('load-button');
-            const loadInput = getEl('load-progress-input');
-            const subgroupifySaveInput = getEl('subgroupify-save-input');
-            const typeGuideImportBtn = getEl('type-guide-import-btn');
-            const typeGuideImportInput = getEl('type-guide-import-input');
-            const typeGuideImportStatus = getEl('type-guide-import-status');
-            const typeRerunBtn = getEl('type-rerun-btn');
-            const typeExportBtn = getEl('type-export-btn');
+	            const loadButton = getEl('load-button');
+	            const loadInput = getEl('load-progress-input');
+	            const subgroupifySaveInput = getEl('subgroupify-save-input');
+	            const postprocessSaveInput = getEl('postprocess-save-input');
+	            const typeGuideImportBtn = getEl('type-guide-import-btn');
+	            const typeGuideImportInput = getEl('type-guide-import-input');
+	            const typeGuideImportStatus = getEl('type-guide-import-status');
+	            const typeRerunBtn = getEl('type-rerun-btn');
+	            const typeExportBtn = getEl('type-export-btn');
 
             saveButton.addEventListener('click', saveProgress);
             loadButton.addEventListener('click', () => loadInput.click());
             loadInput.addEventListener('change', loadProgress);
-            subgroupifySaveInput?.addEventListener('change', async (event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                try {
-                    const raw = await file.text();
-                    const obj = JSON.parse(raw);
-                    const res = await subgroupifyImportedSaveObject(obj);
-                    const stamp = new Date().toISOString().slice(0, 10);
-                    const base = file.name.replace(/\.[^.]+$/, '') || 'save';
-                    __downloadJsonFile(`${base}_subgroupified_${stamp}.json`, res.updated);
-                } catch (e) {
-                    const msg = e?.message || String(e || '');
-                    logger.error('SubgroupifySave', `Failed to subgroupify save: ${msg}`);
-                    alert(__tGui('exportFailedCheckLogsAlert'));
-                } finally {
-                    try { event.target.value = ''; } catch { }
-                }
-            });
+	            subgroupifySaveInput?.addEventListener('change', async (event) => {
+	                const file = event.target.files?.[0];
+	                if (!file) return;
+	                try {
+	                    const raw = await file.text();
+	                    const obj = JSON.parse(raw);
+	                    const res = await subgroupifyImportedSaveObject(obj);
+	                    const stamp = new Date().toISOString().slice(0, 10);
+	                    const base = file.name.replace(/\.[^.]+$/, '') || 'save';
+	                    __downloadJsonFile(`${base}_subgroupified_${stamp}.json`, res.updated);
+	                } catch (e) {
+	                    const msg = e?.message || String(e || '');
+	                    logger.error('SubgroupifySave', `Failed to subgroupify save: ${msg}`);
+	                    alert(__tGui('exportFailedCheckLogsAlert'));
+	                } finally {
+	                    try { event.target.value = ''; } catch { }
+	                }
+	            });
+
+	            postprocessSaveInput?.addEventListener('change', async (event) => {
+	                const file = event.target.files?.[0];
+	                if (!file) return;
+	                try {
+	                    const raw = await file.text();
+	                    const obj = JSON.parse(raw);
+	                    __postprocessSave.state.fileName = file.name;
+	                    __postprocessSave.state.original = obj;
+	                    __postprocessSave.state.loadedAt = new Date().toISOString();
+	                    __postprocessSave.resetWorking();
+	                    __uiTabId = 'postprocess-save';
+	                    if (activeProcess) activeProcess.activeTabId = 'postprocess-save';
+	                    renderActiveProcess();
+	                    logger.success('Postprocess', `Loaded save for postprocessing: ${file.name}`);
+	                } catch (e) {
+	                    const msg = e?.message || String(e || '');
+	                    logger.error('Postprocess', `Failed to load save: ${msg}`);
+	                    alert(__tGui('exportFailedCheckLogsAlert'));
+	                } finally {
+	                    try { event.target.value = ''; } catch { }
+	                }
+	            });
 
             // Clear button - completely resets experiment state
             const clearButton = getEl('clear-button');
@@ -15437,6 +16671,9 @@ ${explanationWithGlobal}
 
             // Start API monitor immediately so key status is visible even before processing
             try { __apiMonitor.setRunning(true); } catch { }
+
+            // Ensure tabs render even when no activeProcess is loaded yet.
+            try { renderActiveProcess(); } catch { }
 
             logger.success("UI_Init", "UI Initialized. Ready for operation.");
         }
