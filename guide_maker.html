@@ -1006,24 +1006,52 @@
 		                            </div>
 		                        </div>
 
-		                        <div class="input-group-tight">
-		                            <label class="ui-label" id="phase0-answer-fill-label" data-i18n="phase0AnswerFillLabel">미정답 문제 LLM 채우기 (옵션)</label>
-		                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
-		                                <input type="checkbox" id="phase0-answer-fill-input">
-		                                <span id="phase0-answer-fill-text" data-i18n-html="phase0AnswerFillTextHtml">정답이 없는 문제만 LLM으로 <code>official_answer</code> + <code>official_explanation</code> 채우기 (주의: 공식 아님)</span>
-		                            </label>
-		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" id="phase0-answer-fill-help" data-i18n="phase0AnswerFillHelp">
-		                                기본값: 사용 안 함. 활성화 시 0단계 이후 추가 호출이 발생합니다.
-		                            </div>
-		                        </div>
-		                        <div class="input-group-tight">
-		                            <label for="answer-fill-chunk-tokens-input" class="ui-label" data-i18n="answerFillChunkTokensLabel">0단계: 미정답 풀이 배치 토큰(대략)</label>
-		                            <input type="number" id="answer-fill-chunk-tokens-input" class="ui-input" min="1000" max="400000"
-		                                value="50000">
-		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="answerFillChunkTokensHelp">
-		                                미정답 문제 정답/해설 생성 배치 묶음에만 적용됩니다.
-		                            </div>
-		                        </div>
+			                        <div class="input-group-tight">
+			                            <label class="ui-label" id="phase0-answer-fill-label" data-i18n="phase0AnswerFillLabel">미정답 문제 LLM 채우기 (옵션)</label>
+			                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
+			                                <input type="checkbox" id="phase0-answer-fill-input">
+			                                <span id="phase0-answer-fill-text" data-i18n-html="phase0AnswerFillTextHtml">정답이 없는 문제만 LLM으로 <code>official_answer</code> + <code>official_explanation</code> 채우기 (주의: 공식 아님)</span>
+			                            </label>
+			                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" id="phase0-answer-fill-help" data-i18n="phase0AnswerFillHelp">
+			                                기본값: 사용 안 함. 활성화 시 0단계 이후 추가 호출이 발생합니다.
+			                            </div>
+			                        </div>
+			                        <div class="input-group-tight" style="margin-top: 0.25rem; padding-left: 14px;">
+			                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+			                                <label class="muted" style="font-size:12px;">
+			                                    <input type="checkbox" id="phase0-answer-fill-fill-answers-input" checked>
+			                                    <span data-i18n="ppFillAnswersLabel">Fill answers</span>
+			                                </label>
+			                                <label class="muted" style="font-size:12px;">
+			                                    <input type="checkbox" id="phase0-answer-fill-fill-explanations-input" checked>
+			                                    <span data-i18n="ppFillExplanationsLabel">Fill explanations</span>
+			                                </label>
+			                                <label class="muted" style="font-size:12px;">
+			                                    <input type="checkbox" id="phase0-answer-fill-overwrite-answers-input">
+			                                    <span data-i18n="ppOverwriteAnswersLabel">Overwrite existing answers</span>
+			                                </label>
+			                                <label class="muted" style="font-size:12px;">
+			                                    <input type="checkbox" id="phase0-answer-fill-overwrite-explanations-input">
+			                                    <span data-i18n="ppOverwriteExplanationsLabel">Overwrite existing explanations</span>
+			                                </label>
+			                            </div>
+			                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px;">
+			                                <label class="muted" style="font-size:12px;">
+			                                    <input type="checkbox" id="phase0-answer-fill-include-type-guide-input" checked>
+			                                    <span data-i18n="ppIncludeTypeGuideLabel">Include type guide (fmm_source)</span>
+			                                </label>
+			                                <label class="muted" style="font-size:12px;" data-i18n="ppTypeGuideMaxCharsLabel">Type guide max chars</label>
+			                                <input type="number" id="phase0-answer-fill-type-guide-max-chars-input" class="ui-input" min="200" max="200000" value="12000" style="max-width:140px;">
+			                            </div>
+			                        </div>
+			                        <div class="input-group-tight">
+			                            <label for="answer-fill-chunk-tokens-input" class="ui-label" data-i18n="answerFillChunkTokensLabel">0단계: 미정답 풀이 배치 토큰(대략)</label>
+			                            <input type="number" id="answer-fill-chunk-tokens-input" class="ui-input" min="1000" max="400000"
+			                                value="50000">
+			                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="answerFillChunkTokensHelp">
+			                                미정답 문제 정답/해설 생성 배치 묶음에만 적용됩니다.
+			                            </div>
+			                        </div>
 		                        <div class="input-group-tight">
 		                            <label class="ui-label" data-i18n="answerFillRefLabel">참고 소스 (옵션)</label>
 		                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
@@ -1720,12 +1748,29 @@
         }
 
 	        const DEFAULT_PIPELINE_CONFIG = {
-            runPlan: { startFrom: 'continue', stopAfter: 'phase3', resetCallCountersOnStart: false },
-            runPhases: { phase0: true, phase1: true, phase2: true, phase3: true }, // derived from runPlan
-	            phase0: { pdfInputMode: 'multimodal', tesseractLang: 'kor+eng', experimentalImageCrops: false, answerFill: { enabled: false, chunkTokens: DEFAULT_CHUNK_TOKENS, useDuckDuckGo: false } },
-            phase1: { archId: 'p1_coverage_style', chunkTokens: DEFAULT_CHUNK_TOKENS, chunkTokens1b: DEFAULT_CHUNK_TOKENS, chunkMode: 'file_first', maxTypes: 25, enableEvaluator: false, maxAttempts: 1, classificationMode: 'coverage', maxUnclassifiedRetries: 2, subgrouping: { enabled: false, chunkTokens: DEFAULT_CHUNK_TOKENS } },
-            phase2: {
-                archId: 'p2_integrated_creator_patch',
+	            runPlan: { startFrom: 'continue', stopAfter: 'phase3', resetCallCountersOnStart: false },
+	            runPhases: { phase0: true, phase1: true, phase2: true, phase3: true }, // derived from runPlan
+		            phase0: {
+		                pdfInputMode: 'multimodal',
+		                tesseractLang: 'kor+eng',
+		                experimentalImageCrops: false,
+		                // NOTE: This is an "export postprocess"-equivalent fill (same engine as Save Postprocessing)
+		                // and runs after Phase 3 (when fmm_source exists) so the type guide can be attached.
+		                answerFill: {
+		                    enabled: false,
+		                    fillChunkTokens: DEFAULT_CHUNK_TOKENS,
+		                    typeGuideMaxChars: 12000,
+		                    includeTypeGuide: true,
+		                    fillAnswers: true,
+		                    fillExplanations: true,
+		                    overwriteAnswers: false,
+		                    overwriteExplanations: false,
+		                    useDuckDuckGo: false,
+		                }
+		            },
+	            phase1: { archId: 'p1_coverage_style', chunkTokens: DEFAULT_CHUNK_TOKENS, chunkTokens1b: DEFAULT_CHUNK_TOKENS, chunkMode: 'file_first', maxTypes: 25, enableEvaluator: false, maxAttempts: 1, classificationMode: 'coverage', maxUnclassifiedRetries: 2, subgrouping: { enabled: false, chunkTokens: DEFAULT_CHUNK_TOKENS } },
+	            phase2: {
+	                archId: 'p2_integrated_creator_patch',
                 enableAuditor: false,
                 auditorLoopMode: 'single_pass', // single_pass | until_pass
                 auditorMaxCycles: 1,            // 0 = unlimited (used when until_pass)
@@ -1808,17 +1853,28 @@
             base.runPlan.resetCallCountersOnStart = !!(cfg?.runPlan?.resetCallCountersOnStart ?? cfg?.resume?.resetCallCountersOnStart ?? false);
             base.runPhases = __computeRunPhases(base.runPlan);
 
-	            // --- phase0 ---
-	            if (cfg?.phase0?.pdfInputMode) base.phase0.pdfInputMode = cfg.phase0.pdfInputMode;
-	            if (cfg?.phase0?.tesseractLang) base.phase0.tesseractLang = cfg.phase0.tesseractLang;
-	            if (typeof cfg?.phase0?.experimentalImageCrops !== 'undefined') base.phase0.experimentalImageCrops = !!cfg.phase0.experimentalImageCrops;
-	            base.phase0.answerFill = {
-	                enabled: !!(cfg?.phase0?.answerFill?.enabled ?? false),
-	                chunkTokens: Number.isFinite(cfg?.phase0?.answerFill?.chunkTokens)
-	                    ? cfg.phase0.answerFill.chunkTokens
-	                    : (base?.phase1?.chunkTokens1b ?? base?.phase1?.chunkTokens ?? DEFAULT_CHUNK_TOKENS),
-	                useDuckDuckGo: !!(cfg?.phase0?.answerFill?.useDuckDuckGo ?? false),
-	            };
+		            // --- phase0 ---
+		            if (cfg?.phase0?.pdfInputMode) base.phase0.pdfInputMode = cfg.phase0.pdfInputMode;
+		            if (cfg?.phase0?.tesseractLang) base.phase0.tesseractLang = cfg.phase0.tesseractLang;
+		            if (typeof cfg?.phase0?.experimentalImageCrops !== 'undefined') base.phase0.experimentalImageCrops = !!cfg.phase0.experimentalImageCrops;
+		            {
+		                const af0 = (cfg?.phase0?.answerFill && typeof cfg.phase0.answerFill === 'object') ? cfg.phase0.answerFill : {};
+		                const inferredTokens = (base?.phase1?.chunkTokens1b ?? base?.phase1?.chunkTokens ?? DEFAULT_CHUNK_TOKENS);
+		                base.phase0.answerFill = {
+		                    enabled: !!(af0?.enabled ?? false),
+		                    // migrate legacy chunkTokens -> fillChunkTokens
+		                    fillChunkTokens: Number.isFinite(af0?.fillChunkTokens)
+		                        ? af0.fillChunkTokens
+		                        : (Number.isFinite(af0?.chunkTokens) ? af0.chunkTokens : inferredTokens),
+		                    typeGuideMaxChars: __clampInt(af0?.typeGuideMaxChars ?? base?.phase0?.answerFill?.typeGuideMaxChars ?? 12000, { min: 200, max: 200000, fallback: 12000 }),
+		                    includeTypeGuide: (typeof af0?.includeTypeGuide === 'boolean') ? af0.includeTypeGuide : true,
+		                    fillAnswers: (typeof af0?.fillAnswers === 'boolean') ? af0.fillAnswers : true,
+		                    fillExplanations: (typeof af0?.fillExplanations === 'boolean') ? af0.fillExplanations : true,
+		                    overwriteAnswers: !!(af0?.overwriteAnswers ?? false),
+		                    overwriteExplanations: !!(af0?.overwriteExplanations ?? false),
+		                    useDuckDuckGo: !!(af0?.useDuckDuckGo ?? false),
+		                };
+		            }
 
             // --- phase1 ---
             if (Number.isFinite(cfg?.phase1?.chunkTokens)) base.phase1.chunkTokens = cfg.phase1.chunkTokens;
@@ -1933,11 +1989,17 @@
 	                experimentalImageCrops: __getBoolFromUi('phase0-image-crops-input', false),
 	                answerFill: {
 	                    enabled: __getBoolFromUi('phase0-answer-fill-input', false),
-	                    chunkTokens: __clampInt(__getStrFromUi('answer-fill-chunk-tokens-input', chunkTokens1b), {
+	                    fillChunkTokens: __clampInt(__getStrFromUi('answer-fill-chunk-tokens-input', chunkTokens1b), {
 	                        min: 1000,
 	                        max: 400000,
 	                        fallback: chunkTokens1b,
 	                    }),
+	                    typeGuideMaxChars: __clampInt(__getStrFromUi('phase0-answer-fill-type-guide-max-chars-input', 12000), { min: 200, max: 200000, fallback: 12000 }),
+	                    includeTypeGuide: __getBoolFromUi('phase0-answer-fill-include-type-guide-input', true),
+	                    fillAnswers: __getBoolFromUi('phase0-answer-fill-fill-answers-input', true),
+	                    fillExplanations: __getBoolFromUi('phase0-answer-fill-fill-explanations-input', true),
+	                    overwriteAnswers: __getBoolFromUi('phase0-answer-fill-overwrite-answers-input', false),
+	                    overwriteExplanations: __getBoolFromUi('phase0-answer-fill-overwrite-explanations-input', false),
 	                    useDuckDuckGo: __getBoolFromUi('answer-fill-duckduckgo-input', false),
 	                },
 	            };
@@ -2040,7 +2102,13 @@
 	                setVal('tesseract-lang-input', c.phase0?.tesseractLang ?? 'kor+eng');
 	                setChk('phase0-image-crops-input', c.phase0?.experimentalImageCrops ?? false);
 	                setChk('phase0-answer-fill-input', c.phase0?.answerFill?.enabled ?? false);
-	                setVal('answer-fill-chunk-tokens-input', c.phase0?.answerFill?.chunkTokens ?? c.phase1?.chunkTokens1b ?? c.phase1?.chunkTokens ?? DEFAULT_CHUNK_TOKENS);
+	                setChk('phase0-answer-fill-fill-answers-input', c.phase0?.answerFill?.fillAnswers ?? true);
+	                setChk('phase0-answer-fill-fill-explanations-input', c.phase0?.answerFill?.fillExplanations ?? true);
+	                setChk('phase0-answer-fill-overwrite-answers-input', c.phase0?.answerFill?.overwriteAnswers ?? false);
+	                setChk('phase0-answer-fill-overwrite-explanations-input', c.phase0?.answerFill?.overwriteExplanations ?? false);
+	                setChk('phase0-answer-fill-include-type-guide-input', c.phase0?.answerFill?.includeTypeGuide ?? true);
+	                setVal('phase0-answer-fill-type-guide-max-chars-input', c.phase0?.answerFill?.typeGuideMaxChars ?? 12000);
+	                setVal('answer-fill-chunk-tokens-input', c.phase0?.answerFill?.fillChunkTokens ?? c.phase0?.answerFill?.chunkTokens ?? c.phase1?.chunkTokens1b ?? c.phase1?.chunkTokens ?? DEFAULT_CHUNK_TOKENS);
 	                setChk('answer-fill-duckduckgo-input', c.phase0?.answerFill?.useDuckDuckGo ?? false);
 
                 setVal('max-data-envelope-tries-input', c.format?.maxDataEnvelopeTries ?? 0);
@@ -9668,20 +9736,18 @@ Rules:
 	                        { role: 'user', content: `CLASSIFICATION STANDARD:\n\n${standardText}\n\n---\n\nPROBLEMS TO CLASSIFY:\n\n${batchText}` }
 	                    ]
 	                };
-                const items = await requestAndParseDataEnvelope(payload, ctx, { phase: 'phase1b' });
-                items.forEach(it => {
-                    const qid = parseTag(it.value, 'qid');
-                    const type_name = parseTag(it.value, 'type_name');
-                    const subgroup_tag = parseTag(it.value, 'subgroup_tag');
-                    const q = batch.find(x => x.qid === qid);
-                    if (!q) return;
-                    perQuestion.push({
-                        qid: q.qid,
-                        pattern_name: type_name,
-                        subgroup_tag: String(subgroup_tag || '').trim().toLowerCase(),
-                        paperName: q.paperName
-                    });
-                });
+	                const items = await requestAndParseDataEnvelope(payload, ctx, { phase: 'phase1b' });
+	                items.forEach(it => {
+	                    const qid = parseTag(it.value, 'qid');
+	                    const type_name = parseTag(it.value, 'type_name');
+	                    const q = batch.find(x => x.qid === qid);
+	                    if (!q) return;
+	                    perQuestion.push({
+	                        qid: q.qid,
+	                        pattern_name: type_name,
+	                        paperName: q.paperName
+	                    });
+	                });
             }
             await runWithConcurrency(batches, processBatch, getWorkerConcurrency());
             return perQuestion;
@@ -9755,18 +9821,14 @@ Rules:
                 baseByNorm.set(__normalizeTitleForMatch(title), createdNewType);
                 assignment.set(title, newQuestions.slice());
             } else {
-                const perQ = await incrementalClassifyQuestions(newQuestions, base.classificationStandard, 'IncClassify');
-                const byQid = new Map(perQ.map(x => [x.qid, x]));
-                newQuestions.forEach(q => {
-                    const m = byQid.get(q.qid);
-                    const typeName = String(m?.pattern_name || '').trim();
-                    try {
-                        const sg = String(m?.subgroup_tag || '').trim();
-                        if (sg) q.subgroup_tag = sg;
-                    } catch { }
-                    const norm = __normalizeTitleForMatch(typeName);
-                    const target = baseByNorm.get(norm);
-                    const title = target ? target.title : null;
+	                const perQ = await incrementalClassifyQuestions(newQuestions, base.classificationStandard, 'IncClassify');
+	                const byQid = new Map(perQ.map(x => [x.qid, x]));
+	                newQuestions.forEach(q => {
+	                    const m = byQid.get(q.qid);
+	                    const typeName = String(m?.pattern_name || '').trim();
+	                    const norm = __normalizeTitleForMatch(typeName);
+	                    const target = baseByNorm.get(norm);
+	                    const title = target ? target.title : null;
                     if (!title) return;
                     if (!assignment.has(title)) assignment.set(title, []);
                     assignment.get(title).push(q);
@@ -10252,7 +10314,13 @@ LANGUAGE CONSTRAINT: The standard problem must be in ${language}.` }
             const enabled = !!cfg?.phase0?.answerFill?.enabled;
             if (!enabled) return { batches: 0, filledAnswers: 0, filledExplanations: 0 };
 
-            const maxT = __clampInt(chunkTokens ?? cfg?.phase0?.answerFill?.chunkTokens ?? DEFAULT_CHUNK_TOKENS, { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS });
+	            const maxT = __clampInt(
+	                chunkTokens ??
+	                cfg?.phase0?.answerFill?.fillChunkTokens ??
+	                cfg?.phase0?.answerFill?.chunkTokens ??
+	                DEFAULT_CHUNK_TOKENS,
+	                { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS }
+	            );
             const useDdg = (typeof useDuckDuckGo === 'boolean') ? useDuckDuckGo : !!cfg?.phase0?.answerFill?.useDuckDuckGo;
             const language = __getGuideLanguageFromUi();
             const guiLang = (getEl('gui-lang-select')?.value === 'ko') ? 'ko' : 'en';
@@ -11084,22 +11152,20 @@ ${chunkText}
 	                            { role: 'user', content: `CLASSIFICATION STANDARD:\n\n${standardText}\n\n---\n\nPROBLEMS TO CLASSIFY:\n\n${batchText}` }
 	                        ]
 	                    };
-                    const items = await requestAndParseDataEnvelope(payload, context, { phase: 'phase1b' });
-                    items.forEach(it => {
-                        const qid = parseTag(it.value, 'qid');
-                        const type_name = parseTag(it.value, 'type_name');
-                        const subgroup_tag = parseTag(it.value, 'subgroup_tag');
-                        const question = batch.find(q => q.qid === qid);
-                        if (question) {
-                            p1_state.perQuestion.push({
-                                qid: question.qid,
-                                pattern_name: type_name,
-                                subgroup_tag: String(subgroup_tag || '').trim().toLowerCase(),
-                                paperName: question.paperName
-                            });
-                        }
-                    });
-                    logger.success("Phase1B", `Classified batch of ${batch.length} problems.`);
+	                    const items = await requestAndParseDataEnvelope(payload, context, { phase: 'phase1b' });
+	                    items.forEach(it => {
+	                        const qid = parseTag(it.value, 'qid');
+	                        const type_name = parseTag(it.value, 'type_name');
+	                        const question = batch.find(q => q.qid === qid);
+	                        if (question) {
+	                            p1_state.perQuestion.push({
+	                                qid: question.qid,
+	                                pattern_name: type_name,
+	                                paperName: question.paperName
+	                            });
+	                        }
+	                    });
+	                    logger.success("Phase1B", `Classified batch of ${batch.length} problems.`);
                 } catch (e) {
                     logger.error("Phase1B", `Batch classification failed: ${e.message}`);
                     throw e;
@@ -11146,26 +11212,7 @@ ${chunkText}
             p1_state.perQuestion = rebuilt.perQuestion;
             p1_state.clusters = rebuilt.clusters;
 
-            // --- Phase 1 (experimental): subgrouping within each type ---
-            const sgCfg = (() => { try { return getPipelineConfig()?.phase1?.subgrouping || {}; } catch { return {}; } })();
-            if (sgCfg?.enabled) {
-                try {
-                    p1_state.subgrouping = p1_state.subgrouping && typeof p1_state.subgrouping === 'object' ? p1_state.subgrouping : {};
-                    p1_state.subgrouping.status = 'processing';
-                    p1_state.subgrouping.error = null;
-                    renderActiveProcess();
-                    await runPhase1SubgroupingFromClusters(p1_state, { chunkTokens: sgCfg?.chunkTokens });
-                    p1_state.subgrouping.status = 'completed';
-                    p1_state.subgrouping.completedAt = new Date().toISOString();
-                } catch (e) {
-                    p1_state.subgrouping = p1_state.subgrouping && typeof p1_state.subgrouping === 'object' ? p1_state.subgrouping : {};
-                    p1_state.subgrouping.status = 'error';
-                    p1_state.subgrouping.error = e?.message || String(e || '');
-                    logger.warn("Phase1Subgroup", `Subgrouping failed: ${p1_state.subgrouping.error}`);
-                }
-            }
-
-            p1_state.status = 'completed';
+	            p1_state.status = 'completed';
 
             if (!activeProcess.phase2_modules || activeProcess.phase2_modules.length === 0) {
                 // Deduplicate clusters by pattern_name in case LLM returned duplicates
@@ -12511,22 +12558,10 @@ ${explanationWithGlobal}
                     }
                 }
 
-                // --- OPTIONAL: Fill missing official answers with LLM (Phase0 answerFill) ---
-                if (!processController.stop) {
-                    try {
-                        const cfg0 = getPipelineConfig(activeProcess)?.phase0 || {};
-                        if (cfg0?.answerFill?.enabled) {
-                            await fillMissingOfficialAnswersWithLlm(cfg0.answerFill);
-                        }
-                    } catch (e) {
-                        logger.warn("AnswerFill", `미정답 LLM 채우기 실패(계속 진행): ${e?.message || e}`);
-                    }
-                }
-
-                // --- GUARD: Need extracted questions for Phase 1/2 ---
-                const allQuestions = collectAllQuestions();
-                if ((run.phase1 || run.phase2) && allQuestions.length === 0) {
-                    logger.warn("Workflow", "No extracted questions available for Phase 1/2.");
+	                // --- GUARD: Need extracted questions for Phase 1/2 ---
+	                const allQuestions = collectAllQuestions();
+	                if ((run.phase1 || run.phase2) && allQuestions.length === 0) {
+	                    logger.warn("Workflow", "No extracted questions available for Phase 1/2.");
                     throw new Error("추출된 문제가 없습니다. 0단계(추출)를 실행하거나, 추출 결과가 들어있는 저장파일을 불러오세요.");
                 }
 
@@ -12586,14 +12621,20 @@ ${explanationWithGlobal}
                     logger.info("Workflow", "2단계가 실행 계획에서 제외되었습니다.");
                 }
 
-                // --- PHASE 3: FINAL COLLATION ---
-                if (run.phase3) {
-                    if (activeProcess.phase3_finalManual?.status === 'pending') {
-                        buildFinalManual();
-                    }
-                } else {
-                    logger.info("Workflow", "3단계가 실행 계획에서 제외되었습니다.");
-                }
+	                // --- PHASE 3: FINAL COLLATION ---
+	                if (run.phase3) {
+	                    if (activeProcess.phase3_finalManual?.status === 'pending') {
+	                        buildFinalManual();
+	                    }
+	                    // --- OPTIONAL: export postprocess (postprocess-equivalent subgroupify / fill) ---
+	                    if (!processController.stop) {
+	                        try { await runExportPostprocessIfEnabled(); } catch (e) {
+	                            logger.warn('ExportPostprocess', `Failed (continuing): ${e?.message || e}`);
+	                        }
+	                    }
+	                } else {
+	                    logger.info("Workflow", "3단계가 실행 계획에서 제외되었습니다.");
+	                }
 
                 if (!processController.stop) {
                     const pendingModulesRemain = Array.isArray(activeProcess.phase2_modules) && activeProcess.phase2_modules.some(m => m.status === 'pending');
@@ -14029,9 +14070,9 @@ ${explanationWithGlobal}
             return String(p?.answer_choices ?? p?.answerChoices ?? p?.choices ?? '').trim();
         }
 
-        async function fillAnswersForImportedSaveObject(obj, { settings } = {}) {
-            const extracted = __extractTypesFromImportedSave(obj);
-            const types = extracted.types || {};
+	        async function fillAnswersForImportedSaveObject(obj, { settings } = {}) {
+	            const extracted = __extractTypesFromImportedSave(obj);
+	            const types = extracted.types || {};
 
             const s = (settings && typeof settings === 'object') ? settings : {};
             const fillAnswers = (typeof s.fillAnswers === 'boolean') ? s.fillAnswers : true;
@@ -14066,229 +14107,419 @@ ${explanationWithGlobal}
             let banneredCount = 0;
             let skipped = 0;
 
-            const typeNames = Object.keys(types || {});
-            if (!typeNames.length) throw new Error('No types found in save file.');
+	            const typeNames = Object.keys(types || {});
+	            if (!typeNames.length) throw new Error('No types found in save file.');
 
-            for (const typeName of typeNames) {
-                if (processController.stop) throw new Error('Operation cancelled.');
-                const listRaw = types[typeName];
-                const list = Array.isArray(listRaw) ? listRaw : [];
-                if (!list.length) continue;
+	            const targetsByType = new Map(); // typeName -> targets[]
+	            for (const typeName of typeNames) {
+	                if (processController.stop) throw new Error('Operation cancelled.');
+	                const listRaw = types[typeName];
+	                const list = Array.isArray(listRaw) ? listRaw : [];
+	                if (!list.length) continue;
 
-                const targets = [];
-                for (const p of list) {
-                    const qid = String(p?.qid || '').trim();
-                    if (!qid) continue;
-                    const curAns = __getProblemOfficialAnswer(p);
-                    const curExp = __getProblemOfficialExplanation(p);
+	                const targets = [];
+	                for (const p of list) {
+	                    const qid = String(p?.qid || '').trim();
+	                    if (!qid) continue;
+	                    const curAns = __getProblemOfficialAnswer(p);
+	                    const curExp = __getProblemOfficialExplanation(p);
 
-                    const needAnswer = fillAnswers && (overwriteAnswers || !curAns);
-                    const needExp = fillExplanations && (overwriteExplanations || !curExp);
-                    if (!needAnswer && !needExp) continue;
+	                    const needAnswer = fillAnswers && (overwriteAnswers || !curAns);
+	                    const needExp = fillExplanations && (overwriteExplanations || !curExp);
+	                    if (!needAnswer && !needExp) continue;
 
-                    // If user asked for explanation-only fill, require an existing official answer.
-                    if (needExp && !fillAnswers && !curAns) { skipped++; continue; }
+	                    // If user asked for explanation-only fill, require an existing official answer.
+	                    if (needExp && !fillAnswers && !curAns) { skipped++; continue; }
 
-                    const lockAnswer = !!curAns && !(fillAnswers && overwriteAnswers);
+	                    const lockAnswer = !!curAns && !(fillAnswers && overwriteAnswers);
 
-                    targets.push({
-                        qid,
-                        p,
-                        needAnswer,
-                        needExp,
-                        lockAnswer,
-                        curAns,
-                        curExp,
-                        __ddg: '',
-                    });
-                }
-                if (!targets.length) continue;
+	                    targets.push({
+	                        qid,
+	                        p,
+	                        needAnswer,
+	                        needExp,
+	                        lockAnswer,
+	                        curAns,
+	                        curExp,
+	                        __ddg: '',
+	                    });
+	                }
+	                if (targets.length) targetsByType.set(typeName, targets);
+	            }
 
-                // Optional: fetch DDG snippets as extra context
-                if (useDdg) {
-                    const jobs = targets.map((t, idx) => ({ idx, t }));
-                    async function processJob(job, workerId) {
-                        const ctx = `DDG-PP-${__normalizeTitleForMatch(typeName)}-W${workerId}`;
-                        const q = __answerFillBuildDdgQuery({
-                            qid: job.t.qid,
-                            question_text: __getProblemQuestionText(job.t.p),
-                            answer_choices: __getProblemAnswerChoices(job.t.p),
-                        });
-                        if (!q) return;
-                        if (ddgCache.has(q)) { job.t.__ddg = ddgCache.get(q); return; }
-                        try {
-                            const snip = await __ddgInstantAnswer(q);
-                            ddgCache.set(q, snip);
-                            job.t.__ddg = snip;
-                        } catch (e) {
-                            logger.warn(ctx, `DuckDuckGo lookup failed: ${e?.message || e}`);
-                        }
-                    }
-                    await runWithConcurrency(jobs, processJob, Math.max(1, Math.min(6, getWorkerConcurrency())));
-                }
+	            if (targetsByType.size === 0) {
+	                logger.info('PostprocessFill', 'No fill targets found; skipping.');
+	                return { updated: obj, filledAnswers: 0, filledExplanations: 0, bannered: 0, skipped };
+	            }
 
-                const guideBody = (() => {
-                    if (!includeTypeGuide || !guideSections?.byNormTitle) return '';
-                    const norm = __normalizeTitleForMatch(typeName);
-                    const body = guideSections.byNormTitle.get(norm) || '';
-                    return __answerFillClipText(body, typeGuideMaxChars);
-                })();
+	            // Optional: fetch DDG snippets as extra context (global)
+	            if (useDdg) {
+	                const jobs = [];
+	                targetsByType.forEach((targets, typeName) => {
+	                    targets.forEach((t, idx) => jobs.push({ typeName, idx, t }));
+	                });
+	                async function processJob(job, workerId) {
+	                    const ctx = `DDG-PP-${__normalizeTitleForMatch(job.typeName)}-W${workerId}`;
+	                    const q = __answerFillBuildDdgQuery({
+	                        qid: job.t.qid,
+	                        question_text: __getProblemQuestionText(job.t.p),
+	                        answer_choices: __getProblemAnswerChoices(job.t.p),
+	                    });
+	                    if (!q) return;
+	                    if (ddgCache.has(q)) { job.t.__ddg = ddgCache.get(q); return; }
+	                    try {
+	                        const snip = await __ddgInstantAnswer(q);
+	                        ddgCache.set(q, snip);
+	                        job.t.__ddg = snip;
+	                    } catch (e) {
+	                        logger.warn(ctx, `DuckDuckGo lookup failed: ${e?.message || e}`);
+	                    }
+	                }
+	                await runWithConcurrency(jobs, processJob, Math.max(1, Math.min(6, getWorkerConcurrency())));
+	            }
 
-                const headerText = (() => {
-                    const parts = [];
-                    parts.push(`TYPE: ${typeName}`);
-                    if (guideBody) parts.push(`\n[TYPE GUIDE]\n${guideBody}`);
-                    parts.push(
-                        `\nRULES:\n` +
-                        `- Use the given QID exactly.\n` +
-                        `- Output ONLY <data>...</data>.\n` +
-                        `- If an item includes OFFICIAL ANSWER, copy it EXACTLY into <answer>.\n`
-                    );
-                    return parts.join('\n').trim();
-                })();
+	            // Build all batch jobs
+	            const batchJobs = [];
+	            targetsByType.forEach((targets, typeName) => {
+	                const guideBody = (() => {
+	                    if (!includeTypeGuide || !guideSections?.byNormTitle) return '';
+	                    const norm = __normalizeTitleForMatch(typeName);
+	                    const body = guideSections.byNormTitle.get(norm) || '';
+	                    return __answerFillClipText(body, typeGuideMaxChars);
+	                })();
 
-                const overheadTok = __estimateTokens(headerText + '\n\n');
-                const perBatchMaxT = Math.max(1000, maxT - overheadTok);
+	                const headerText = (() => {
+	                    const parts = [];
+	                    parts.push(`TYPE: ${typeName}`);
+	                    if (guideBody) parts.push(`\n[TYPE GUIDE]\n${guideBody}`);
+	                    parts.push(
+	                        `\nRULES:\n` +
+	                        `- Use the given QID exactly.\n` +
+	                        `- Output ONLY <data>...</data>.\n` +
+	                        `- If an item includes OFFICIAL ANSWER, copy it EXACTLY into <answer>.\n`
+	                    );
+	                    return parts.join('\n').trim();
+	                })();
 
-                const items = targets.map(t => {
-                    const qText = __answerFillClipText(__answerFillStripDataUris(__getProblemQuestionText(t.p)), 6500);
-                    const cText = __answerFillClipText(__answerFillStripDataUris(__getProblemAnswerChoices(t.p)), 1600);
-                    const ddg = String(t.__ddg || '').trim();
-                    const ref = ddg ? `\n\n[DuckDuckGo Instant Answer]\n${ddg}` : '';
-                    const lock = t.lockAnswer ? `\n\nOFFICIAL ANSWER (copy EXACTLY): ${t.curAns}` : '';
-                    const block =
-                        `QID: ${t.qid}\n` +
-                        `QUESTION:\n${qText || '(empty)'}\n` +
-                        (cText ? `\nCHOICES:\n${cText}\n` : '') +
-                        lock +
-                        ref;
-                    return { qid: t.qid, t, text: block, estTokens: __estimateTokens(block) };
-                }).filter(it => it.qid);
+	                const overheadTok = __estimateTokens(headerText + '\n\n');
+	                const perBatchMaxT = Math.max(1000, maxT - overheadTok);
 
-                const batches = __packAnswerFillItemsByTokens(items, perBatchMaxT);
-                logger.info('PostprocessFill', `Type "${typeName}": targets=${items.length} → batches=${batches.length} (maxTokens≈${maxT}, overhead≈${overheadTok}, ddg=${useDdg ? 'on' : 'off'})`);
+	                const items = targets.map(t => {
+	                    const qText = __answerFillClipText(__answerFillStripDataUris(__getProblemQuestionText(t.p)), 6500);
+	                    const cText = __answerFillClipText(__answerFillStripDataUris(__getProblemAnswerChoices(t.p)), 1600);
+	                    const ddg = String(t.__ddg || '').trim();
+	                    const ref = ddg ? `\n\n[DuckDuckGo Instant Answer]\n${ddg}` : '';
+	                    const lock = t.lockAnswer ? `\n\nOFFICIAL ANSWER (copy EXACTLY): ${t.curAns}` : '';
+	                    const block =
+	                        `QID: ${t.qid}\n` +
+	                        `QUESTION:\n${qText || '(empty)'}\n` +
+	                        (cText ? `\nCHOICES:\n${cText}\n` : '') +
+	                        lock +
+	                        ref;
+	                    return { qid: t.qid, t, text: block, estTokens: __estimateTokens(block) };
+	                }).filter(it => it.qid);
 
-                async function processBatch(batch, batchIndex) {
-                    const ctx = `PostprocessFill-${__normalizeTitleForMatch(typeName)}-B${batchIndex}`;
-                    const list = (batch && Array.isArray(batch.items)) ? batch.items : [];
-                    if (!list.length) return;
+	                const batches = __packAnswerFillItemsByTokens(items, perBatchMaxT);
+	                logger.info('PostprocessFill', `Type "${typeName}": targets=${items.length} → batches=${batches.length} (maxTokens≈${maxT}, overhead≈${overheadTok}, ddg=${useDdg ? 'on' : 'off'})`);
 
-                    const userText =
-                        `${headerText}\n\n` +
-                        `Solve ALL problems below.\n\n` +
-                        list.map(x => x.text).join('\n\n---\n\n');
+	                for (let i = 0; i < batches.length; i++) {
+	                    const list = (batches[i] && Array.isArray(batches[i].items)) ? batches[i].items : [];
+	                    if (!list.length) continue;
+	                    batchJobs.push({ typeName, headerText, list, batchIndex: i });
+	                }
+	            });
 
-                    const payload = {
-                        model: getApiConfig().model,
-                        messages: [
-                            { role: 'system', content: __renderPromptTemplateText(currentPrompts.answer_filler.system, { language }) },
-                            { role: 'user', content: userText }
-                        ]
-                    };
+	            async function processBatchJob(job, workerId) {
+	                const typeName = job.typeName;
+	                const headerText = job.headerText;
+	                const list = job.list || [];
+	                const batchIndex = job.batchIndex || 0;
+	                if (!list.length) return;
 
-                    const expected = new Set(list.map(x => x.qid));
-                    const locked = new Map(list.map(x => [x.qid, x?.t?.lockAnswer ? (x?.t?.curAns || '') : '']).filter(([_, v]) => String(v || '').trim()));
+	                const ctx = `PostprocessFill-${__normalizeTitleForMatch(typeName)}-B${batchIndex}-W${workerId}`;
+	                const userText =
+	                    `${headerText}\n\n` +
+	                    `Solve ALL problems below.\n\n` +
+	                    list.map(x => x.text).join('\n\n---\n\n');
 
-                    const MAX_TRIES = 3;
-                    let lastErr = '';
-                    for (let tryNo = 1; tryNo <= MAX_TRIES; tryNo++) {
-                        if (processController.stop) throw new Error('Operation cancelled.');
-                        try {
-                            const parsed = await requestAndParseDataEnvelope(payload, `${ctx}-T${tryNo}`, { phase: 'phase0' });
-                            const byQid = new Map();
-                            parsed.forEach(it => {
-                                const v = String(it?.value || '');
-                                const qid = String(parseTag(v, 'qid') || '').trim();
-                                const answer = String(parseTag(v, 'answer') || '').trim();
-                                const explanation = String(parseTag(v, 'explanation') || '').trim();
-                                const confRaw = String(parseTag(v, 'confidence') || '').trim();
-                                const conf = (() => { const n = parseFloat(confRaw); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : null; })();
-                                if (!qid) return;
-                                byQid.set(qid, { answer, explanation, confidence: conf });
-                            });
+	                const payload = {
+	                    model: getApiConfig().model,
+	                    messages: [
+	                        { role: 'system', content: __renderPromptTemplateText(currentPrompts.answer_filler.system, { language }) },
+	                        { role: 'user', content: userText }
+	                    ]
+	                };
 
-                            const missing = [];
-                            expected.forEach(qid => {
-                                const rec = byQid.get(qid);
-                                if (!rec) { missing.push(`${qid}:no_item`); return; }
-                                if (!String(rec.answer || '').trim()) missing.push(`${qid}:empty_answer`);
-                                if (!String(rec.explanation || '').trim()) missing.push(`${qid}:empty_explanation`);
-                                const lockAns = locked.get(qid);
-                                if (lockAns) {
-                                    const a0 = __normalizeAnswerForCompare(lockAns);
-                                    const a1 = __normalizeAnswerForCompare(rec.answer);
-                                    if (a0 && a1 && a0 !== a1) missing.push(`${qid}:answer_mismatch`);
-                                }
-                            });
-                            if (missing.length) throw new Error(`Incomplete batch output: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? '...' : ''}`);
+	                const expected = new Set(list.map(x => x.qid));
+	                const locked = new Map(list.map(x => [x.qid, x?.t?.lockAnswer ? (x?.t?.curAns || '') : '']).filter(([_, v]) => String(v || '').trim()));
 
-                            // Apply
-                            list.forEach(x => {
-                                const qid = x.qid;
-                                const rec = byQid.get(qid);
-                                if (!rec) return;
-                                const t = x.t;
-                                const p = t?.p;
-                                if (!p || typeof p !== 'object') return;
+	                const MAX_TRIES = 3;
+	                let lastErr = '';
+	                for (let tryNo = 1; tryNo <= MAX_TRIES; tryNo++) {
+	                    if (processController.stop) throw new Error('Operation cancelled.');
+	                    try {
+	                        const parsed = await requestAndParseDataEnvelope(payload, `${ctx}-T${tryNo}`, { phase: 'phase0' });
+	                        const byQid = new Map();
+	                        parsed.forEach(it => {
+	                            const v = String(it?.value || '');
+	                            const qid = String(parseTag(v, 'qid') || '').trim();
+	                            const answer = String(parseTag(v, 'answer') || '').trim();
+	                            const explanation = String(parseTag(v, 'explanation') || '').trim();
+	                            const confRaw = String(parseTag(v, 'confidence') || '').trim();
+	                            const conf = (() => { const n = parseFloat(confRaw); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : null; })();
+	                            if (!qid) return;
+	                            byQid.set(qid, { answer, explanation, confidence: conf });
+	                        });
 
-                                const beforeAns = __getProblemOfficialAnswer(p);
-                                const beforeExp = __getProblemOfficialExplanation(p);
+	                        const missing = [];
+	                        expected.forEach(qid => {
+	                            const rec = byQid.get(qid);
+	                            if (!rec) { missing.push(`${qid}:no_item`); return; }
+	                            if (!String(rec.answer || '').trim()) missing.push(`${qid}:empty_answer`);
+	                            if (!String(rec.explanation || '').trim()) missing.push(`${qid}:empty_explanation`);
+	                            const lockAns = locked.get(qid);
+	                            if (lockAns) {
+	                                const a0 = __normalizeAnswerForCompare(lockAns);
+	                                const a1 = __normalizeAnswerForCompare(rec.answer);
+	                                if (a0 && a1 && a0 !== a1) missing.push(`${qid}:answer_mismatch`);
+	                            }
+	                        });
+	                        if (missing.length) throw new Error(`Incomplete batch output: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? '...' : ''}`);
 
-                                let didAnswer = false;
-                                let didExp = false;
+	                        // Apply
+	                        list.forEach(x => {
+	                            const qid = x.qid;
+	                            const rec = byQid.get(qid);
+	                            if (!rec) return;
+	                            const t = x.t;
+	                            const p = t?.p;
+	                            if (!p || typeof p !== 'object') return;
 
-                                if (t.needAnswer && String(rec.answer || '').trim()) {
-                                    __setProblemOfficialAnswer(p, rec.answer);
-                                    p.official_answer_source = 'llm';
-                                    p.llm_answer_confidence = rec.confidence;
-                                    filledAnswersCount++;
-                                    didAnswer = true;
-                                } else if (t.lockAnswer && beforeAns) {
-                                    __setProblemOfficialAnswer(p, beforeAns);
-                                }
+	                            const beforeAns = __getProblemOfficialAnswer(p);
+	                            const beforeExp = __getProblemOfficialExplanation(p);
 
-                                if (t.needExp && String(rec.explanation || '').trim()) {
-                                    const body = __stripLlmBannerFromExplanation(rec.explanation);
-                                    const banner = __makeLlmProvenanceBanner({ guiLang, answerGenerated: didAnswer, explanationGenerated: true });
-                                    __setProblemOfficialExplanation(p, (banner + body).trim());
-                                    p.official_explanation_source = 'llm';
-                                    filledExplanationsCount++;
-                                    didExp = true;
-                                    banneredCount++;
-                                }
+	                            let didAnswer = false;
+	                            let didExp = false;
 
-                                if (didAnswer && !didExp) {
-                                    const body = __stripLlmBannerFromExplanation(beforeExp);
-                                    const banner = __makeLlmProvenanceBanner({ guiLang, answerGenerated: true, explanationGenerated: false });
-                                    __setProblemOfficialExplanation(p, (banner + (body ? body : '')).trim());
-                                    if (!body) p.official_explanation_source = 'llm_meta';
-                                    banneredCount++;
-                                }
-                            });
-                            return;
-                        } catch (e) {
-                            lastErr = e?.message || String(e || '');
-                            logger.warn('PostprocessFill', `${ctx}: try ${tryNo}/${MAX_TRIES} failed: ${lastErr}`);
-                            if (tryNo >= MAX_TRIES) throw e;
-                        }
-                    }
-                    throw new Error(lastErr || 'Postprocess fill failed.');
-                }
+	                            if (t.needAnswer && String(rec.answer || '').trim()) {
+	                                __setProblemOfficialAnswer(p, rec.answer);
+	                                p.official_answer_source = 'llm';
+	                                p.llm_answer_confidence = rec.confidence;
+	                                filledAnswersCount++;
+	                                didAnswer = true;
+	                            } else if (t.lockAnswer && beforeAns) {
+	                                __setProblemOfficialAnswer(p, beforeAns);
+	                            }
 
-                for (let i = 0; i < batches.length; i++) {
-                    if (processController.stop) throw new Error('Operation cancelled.');
-                    await processBatch(batches[i], i);
-                }
-            }
+	                            if (t.needExp && String(rec.explanation || '').trim()) {
+	                                const body = __stripLlmBannerFromExplanation(rec.explanation);
+	                                const banner = __makeLlmProvenanceBanner({ guiLang, answerGenerated: didAnswer, explanationGenerated: true });
+	                                __setProblemOfficialExplanation(p, (banner + body).trim());
+	                                p.official_explanation_source = 'llm';
+	                                filledExplanationsCount++;
+	                                didExp = true;
+	                                banneredCount++;
+	                            }
 
-            logger.success('PostprocessFill', `Done. filledAnswers=${filledAnswersCount}, filledExplanations=${filledExplanationsCount}, bannered=${banneredCount}, skipped=${skipped}`);
-            return { updated: obj, filledAnswers: filledAnswersCount, filledExplanations: filledExplanationsCount, bannered: banneredCount, skipped };
-        }
+	                            if (didAnswer && !didExp) {
+	                                const body = __stripLlmBannerFromExplanation(beforeExp);
+	                                const banner = __makeLlmProvenanceBanner({ guiLang, answerGenerated: true, explanationGenerated: false });
+	                                __setProblemOfficialExplanation(p, (banner + (body ? body : '')).trim());
+	                                if (!body) p.official_explanation_source = 'llm_meta';
+	                                banneredCount++;
+	                            }
+	                        });
+	                        return;
+	                    } catch (e) {
+	                        lastErr = e?.message || String(e || '');
+	                        logger.warn('PostprocessFill', `${ctx}: try ${tryNo}/${MAX_TRIES} failed: ${lastErr}`);
+	                        if (tryNo >= MAX_TRIES) throw e;
+	                    }
+	                }
+	                throw new Error(lastErr || 'Postprocess fill failed.');
+	            }
 
-        function __buildTypeProblemsBundleForExport() {
-            const perQ = activeProcess?.phase1_patterns?.perQuestion || [];
-            if (!perQ.length) throw new Error(__tGui('exportNoTypeResultsError'));
-            const p1 = activeProcess?.phase1_patterns || {};
+	            const { errors } = await runWithConcurrency(batchJobs, processBatchJob, Math.max(1, Math.min(6, getWorkerConcurrency())));
+	            if (errors && errors.length) {
+	                throw (errors[0]?.error || new Error('Postprocess fill failed.'));
+	            }
+
+	            logger.success('PostprocessFill', `Done. filledAnswers=${filledAnswersCount}, filledExplanations=${filledExplanationsCount}, bannered=${banneredCount}, skipped=${skipped}`);
+	            return { updated: obj, filledAnswers: filledAnswersCount, filledExplanations: filledExplanationsCount, bannered: banneredCount, skipped };
+	        }
+
+	        function __buildFmmBundleForExportFromActiveProcess() {
+	            const guide = String(activeProcess?.phase3_finalManual?.content || '').trim();
+	            if (!guide) throw new Error('Phase 3 final guide (fmm_source) is empty.');
+	            const { types } = __buildTypeProblemsBundleForExport();
+	            const guiLang = (getEl('gui-lang-select')?.value === 'ko') ? 'ko' : 'en';
+	            return {
+	                __fmm_bundle__: 1,
+	                exportedAt: new Date().toISOString(),
+	                items: {
+	                    fmm_source: { kind: 'raw', value: guide },
+	                    fmm_problems_json: { kind: 'json', value: { types } },
+	                    fmm_ui_lang: { kind: 'raw', value: guiLang },
+	                }
+	            };
+	        }
+
+	        function __applyPostprocessedBundleBackToActiveProcess(bundle, { applyFill = false, applySubgroup = false } = {}) {
+	            const extracted = __extractTypesFromImportedSave(bundle);
+	            const types = extracted.types || {};
+
+	            const byQid = new Map();
+	            Object.values(types).forEach(listRaw => {
+	                const list = Array.isArray(listRaw) ? listRaw : [];
+	                list.forEach(p => {
+	                    const qid = String(p?.qid || '').trim();
+	                    if (!qid) return;
+	                    byQid.set(qid, p);
+	                });
+	            });
+
+	            if (applyFill) {
+	                (activeProcess?.phase0_extract || []).forEach(paperState => {
+	                    const qas = (paperState && paperState.qasByQid && typeof paperState.qasByQid === 'object') ? paperState.qasByQid : null;
+	                    if (!qas) return;
+	                    Object.entries(qas).forEach(([qid, qa]) => {
+	                        const p = byQid.get(String(qid || '').trim());
+	                        if (!p || !qa || typeof qa !== 'object') return;
+	                        const ans = __getProblemOfficialAnswer(p);
+	                        const exp = __getProblemOfficialExplanation(p);
+	                        if (ans) qa.official_answer = ans;
+	                        if (exp) qa.official_explanation = exp;
+	                        if (p.official_answer_source) qa.official_answer_source = p.official_answer_source;
+	                        if (p.llm_answer_confidence != null) qa.llm_answer_confidence = p.llm_answer_confidence;
+	                        if (p.official_explanation_source) qa.official_explanation_source = p.official_explanation_source;
+	                    });
+	                });
+	            }
+
+	            if (applySubgroup) {
+	                const p1 = activeProcess?.phase1_patterns;
+	                const perQ = Array.isArray(p1?.perQuestion) ? p1.perQuestion : null;
+	                if (perQ) {
+	                    perQ.forEach(pq => {
+	                        const qid = String(pq?.qid || '').trim();
+	                        const p = byQid.get(qid);
+	                        if (!p) return;
+	                        const tag = String(p?.subgroup_tag ?? p?.subgroupTag ?? '').trim();
+	                        const rule = String(p?.subgroup_rule ?? p?.subgroupRule ?? '').trim();
+	                        pq.subgroup_tag = tag;
+	                        pq.subgroup_rule = rule;
+	                    });
+	                }
+	            }
+	        }
+
+	        function __buildAnswerFillSettingsFromPipelineConfig(cfg) {
+	            const af = (cfg?.phase0?.answerFill && typeof cfg.phase0.answerFill === 'object') ? cfg.phase0.answerFill : {};
+	            return {
+	                fillAnswers: (typeof af.fillAnswers === 'boolean') ? af.fillAnswers : true,
+	                fillExplanations: (typeof af.fillExplanations === 'boolean') ? af.fillExplanations : true,
+	                overwriteAnswers: !!af.overwriteAnswers,
+	                overwriteExplanations: !!af.overwriteExplanations,
+	                includeTypeGuide: (typeof af.includeTypeGuide === 'boolean') ? af.includeTypeGuide : true,
+	                typeGuideMaxChars: __clampInt(af.typeGuideMaxChars, { min: 200, max: 200000, fallback: 12000 }),
+	                fillChunkTokens: __clampInt(af.fillChunkTokens ?? af.chunkTokens, { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS }),
+	                useDuckDuckGo: !!af.useDuckDuckGo,
+	            };
+	        }
+
+	        async function runExportPostprocessIfEnabled() {
+	            const cfg = getPipelineConfig(activeProcess);
+	            const doSubgroup = !!cfg?.phase1?.subgrouping?.enabled;
+	            const doFill = !!cfg?.phase0?.answerFill?.enabled;
+	            if (!doSubgroup && !doFill) return { didRun: false };
+
+	            const phase3Ok = String(activeProcess?.phase3_finalManual?.status || '').toLowerCase() === 'completed';
+	            if (!phase3Ok) {
+	                logger.warn('ExportPostprocess', 'Skipped: Phase 3 is not completed (fmm_source not available).');
+	                return { didRun: false, skipped: 'phase3_not_completed' };
+	            }
+
+	            const cfgSig = (() => {
+	                try {
+	                    return JSON.stringify({
+	                        model: getApiConfig()?.model || null,
+	                        doSubgroup,
+	                        subgroupChunkTokens: doSubgroup ? (cfg?.phase1?.subgrouping?.chunkTokens ?? null) : null,
+	                        doFill,
+	                        fill: doFill ? __buildAnswerFillSettingsFromPipelineConfig(cfg) : null,
+	                    });
+	                } catch {
+	                    return String(Date.now());
+	                }
+	            })();
+	            if (activeProcess?.export_postprocess?.status === 'completed' && activeProcess?.export_postprocess?.configSig === cfgSig) {
+	                logger.info('ExportPostprocess', 'Skipped: already completed with the same settings.');
+	                return { didRun: false, skipped: 'already_completed' };
+	            }
+
+	            const statusBits = [
+	                doSubgroup ? 'subgroupify' : null,
+	                doFill ? 'fill' : null
+	            ].filter(Boolean).join(' + ');
+	            updateStatus('Export Postprocess...', `Running ${statusBits} (postprocess-equivalent) on final export...`);
+	            renderActiveProcess();
+
+	            const startedAt = new Date().toISOString();
+	            activeProcess.export_postprocess = { status: 'processing', startedAt, doSubgroup, doFill, configSig: cfgSig };
+
+	            try {
+	                let working = __buildFmmBundleForExportFromActiveProcess();
+	                let subgroupAssigned = 0;
+	                let fillRes = null;
+
+	                if (doSubgroup) {
+	                    const tok = cfg?.phase1?.subgrouping?.chunkTokens;
+	                    const sg = await subgroupifyImportedSaveObject(working, { chunkTokens: tok });
+	                    working = sg.updated;
+	                    subgroupAssigned = sg.assigned || 0;
+	                }
+
+	                if (doFill) {
+	                    const settings = __buildAnswerFillSettingsFromPipelineConfig(cfg);
+	                    fillRes = await fillAnswersForImportedSaveObject(working, { settings });
+	                    working = fillRes.updated;
+	                }
+
+	                __applyPostprocessedBundleBackToActiveProcess(working, { applyFill: doFill, applySubgroup: doSubgroup });
+
+	                activeProcess.export_postprocess = {
+	                    status: 'completed',
+	                    startedAt,
+	                    completedAt: new Date().toISOString(),
+	                    doSubgroup,
+	                    doFill,
+	                    configSig: cfgSig,
+	                    subgroupAssigned,
+	                    filledAnswers: fillRes?.filledAnswers || 0,
+	                    filledExplanations: fillRes?.filledExplanations || 0,
+	                    bannered: fillRes?.bannered || 0,
+	                    skipped: fillRes?.skipped || 0,
+	                };
+
+	                logger.success(
+	                    'ExportPostprocess',
+	                    `Done. subgroupAssigned=${subgroupAssigned}, filledAnswers=${fillRes?.filledAnswers || 0}, filledExplanations=${fillRes?.filledExplanations || 0}`
+	                );
+	                renderActiveProcess();
+	                return { didRun: true, subgroupAssigned, fill: fillRes };
+	            } catch (e) {
+	                const msg = e?.message || String(e || '');
+	                activeProcess.export_postprocess = { status: 'error', startedAt, error: msg, configSig: cfgSig };
+	                logger.warn('ExportPostprocess', `Failed: ${msg}`);
+	                renderActiveProcess();
+	                return { didRun: false, error: msg };
+	            }
+	        }
+
+	        function __buildTypeProblemsBundleForExport() {
+	            const perQ = activeProcess?.phase1_patterns?.perQuestion || [];
+	            if (!perQ.length) throw new Error(__tGui('exportNoTypeResultsError'));
+	            const p1 = activeProcess?.phase1_patterns || {};
             const globalTypeNameMap = p1?.globalTypeNameMap;
             const all = collectAllQuestions();
             const byId = new Map(all.map(q => [q.qid, q]));
@@ -14934,7 +15165,7 @@ ${explanationWithGlobal}
 	                phase0ImageCropsHelp: 'Default: off. Enabling can increase cost/file size.',
 	                phase1SubgroupingLabel: 'Subgroups within types (experimental)',
 	                phase1SubgroupingTextHtml: 'Within each type: group only the problems that share an identical one-sentence solving rule using <code>subgroup_tag</code> (affects renderer similarity groups)',
-	                phase1SubgroupingHelp: 'Default: off. Enabling adds extra calls after Phase 1.',
+	                phase1SubgroupingHelp: 'Default: off. Enabling adds extra calls after Phase 3 (final export).',
 	
 	                runPlanLabel: 'Run plan',
 	                runStartFromLabel: 'Restart point (applies once)',
@@ -14957,10 +15188,10 @@ ${explanationWithGlobal}
 	                chunkTokens1bHelp: 'Applies only to Phase 1B (type classification) batching. (Separate from Phase 1A type standard generation/verification.)',
 	                subgroupChunkTokensLabel: 'Phase 1: Subgrouping batch tokens (approx.)',
 	                subgroupChunkTokensHelp: 'Applies only to Phase 1 subgrouping (within-type grouping) batching.',
-	                phase0AnswerFillLabel: 'Fill missing answers with LLM (optional)',
-	                phase0AnswerFillTextHtml: 'For problems missing an answer: fill <code>official_answer</code> + <code>official_explanation</code> using LLM (warning: not official)',
-	                phase0AnswerFillHelp: 'Default: off. Enabling adds extra calls after Phase 0.',
-	                answerFillChunkTokensLabel: 'Phase 0: Answer-fill batch tokens (approx.)',
+	                phase0AnswerFillLabel: 'LLM fill (postprocess-equivalent) (optional)',
+	                phase0AnswerFillTextHtml: 'Postprocess-equivalent: fill <code>official_answer</code> / <code>official_explanation</code> using LLM (warning: not official)',
+	                phase0AnswerFillHelp: 'Default: off. Enabling adds extra calls after Phase 3 (final guide), so it can include the type guide.',
+	                answerFillChunkTokensLabel: 'LLM fill batch tokens (approx.)',
 	                answerFillChunkTokensHelp: 'Applies only to LLM answer/explanation filling batches.',
 	                answerFillRefLabel: 'Reference sources (optional)',
 	                answerFillDuckDuckGoLabel: 'Use DuckDuckGo Instant Answer (free, extra network requests)',
@@ -15302,7 +15533,7 @@ ${explanationWithGlobal}
 	                phase0ImageCropsHelp: '기본값: 사용 안 함. 활성화 시 비용/용량이 증가할 수 있습니다.',
 	                phase1SubgroupingLabel: '유형 내 소그룹 (실험)',
 	                phase1SubgroupingTextHtml: '유형 내에서 “한 문장으로 같은 풀이가 가능한” 문제만 <code>subgroup_tag</code>로 묶기 (렌더러 유사도 그룹에 반영)',
-	                phase1SubgroupingHelp: '기본값: 사용 안 함. 활성화 시 1단계 이후 추가 호출이 발생합니다.',
+	                phase1SubgroupingHelp: '기본값: 사용 안 함. 활성화 시 3단계(최종 가이드) 이후 추가 호출이 발생합니다.',
 	
 	                runPlanLabel: '실행 계획',
 	                runStartFromLabel: '재시작 지점 (한 번만 적용)',
@@ -15325,10 +15556,10 @@ ${explanationWithGlobal}
 	                chunkTokens1bHelp: '1단계B(유형분류) 배치 묶음에만 적용됩니다. (1단계A 유형표준 생성/검증과 분리)',
 	                subgroupChunkTokensLabel: '1단계: 소그룹 배치 토큰(대략)',
 	                subgroupChunkTokensHelp: '소그룹 생성(유형 내 문제 묶기) 배치 묶음에만 적용됩니다.',
-	                phase0AnswerFillLabel: '미정답 문제 LLM 채우기 (옵션)',
-	                phase0AnswerFillTextHtml: '정답이 없는 문제만 LLM으로 <code>official_answer</code> + <code>official_explanation</code> 채우기 (주의: 공식 아님)',
-	                phase0AnswerFillHelp: '기본값: 사용 안 함. 활성화 시 0단계 이후 추가 호출이 발생합니다.',
-	                answerFillChunkTokensLabel: '0단계: 미정답 풀이 배치 토큰(대략)',
+	                phase0AnswerFillLabel: '정답/해설 LLM 채우기 (후처리 방식) (옵션)',
+	                phase0AnswerFillTextHtml: '저장파일 후처리와 동일한 방식으로 <code>official_answer</code> / <code>official_explanation</code> 채우기 (주의: 공식 아님)',
+	                phase0AnswerFillHelp: '기본값: 사용 안 함. 활성화 시 3단계(최종 가이드) 이후 추가 호출이 발생합니다. (유형 가이드 첨부 가능)',
+	                answerFillChunkTokensLabel: 'LLM 채우기 배치 토큰(대략)',
 	                answerFillChunkTokensHelp: '미정답 문제 정답/해설 생성 배치 묶음에만 적용됩니다.',
 	                answerFillRefLabel: '참고 소스 (옵션)',
 	                answerFillDuckDuckGoLabel: 'DuckDuckGo Instant Answer 참고 (무료, 네트워크 요청 추가)',
@@ -16154,18 +16385,23 @@ ${explanationWithGlobal}
 	            ['api-url-input', 'api-proxy-url-input', 'api-key-list-input', 'api-model-name-input', 'enable-rate-limit-input', 'rpm-limit-input', 'tpm-limit-input', 'inflight-limit-input'].forEach(id =>
 	                getEl(id).addEventListener('change', saveApiConfig)
 	            );
-	            [
-	                'run-start-from-select', 'run-stop-after-select', 'reset-call-counters-on-start-input',
-	                'chunk-tokens-input', 'chunk-tokens-1b-input', 'phase1-subgrouping-input', 'subgrouping-chunk-tokens-input',
-	                'phase1-arch-select',
-	                'phase2-arch-select', 'phase2-target-select', 'phase2-target-query-input', 'phase2-max-modules-input',
-	                'coverage-max-tokens-input', 'coverage-max-rounds-input', 'coverage-verifier-output-select', 'coverage-verifier-max-tries-input', 'coverage-final-verify-select',
-	                'phase0-pdf-input-mode-select', 'tesseract-lang-input', 'phase0-image-crops-input', 'phase0-answer-fill-input', 'answer-fill-chunk-tokens-input', 'answer-fill-duckduckgo-input',
-	                'max-data-envelope-tries-input', 'structured-output-style-select',
-	                'structured-output-phase0-select', 'structured-output-phase1a-select', 'structured-output-phase1b-select', 'structured-output-phase2-select',
-	            ].forEach(id => {
-                getEl(id)?.addEventListener('change', savePipelineConfigToStorage);
-                getEl(id)?.addEventListener('input', savePipelineConfigToStorage);
+		            [
+		                'run-start-from-select', 'run-stop-after-select', 'reset-call-counters-on-start-input',
+		                'chunk-tokens-input', 'chunk-tokens-1b-input', 'phase1-subgrouping-input', 'subgrouping-chunk-tokens-input',
+		                'phase1-arch-select',
+		                'phase2-arch-select', 'phase2-target-select', 'phase2-target-query-input', 'phase2-max-modules-input',
+		                'coverage-max-tokens-input', 'coverage-max-rounds-input', 'coverage-verifier-output-select', 'coverage-verifier-max-tries-input', 'coverage-final-verify-select',
+		                'phase0-pdf-input-mode-select', 'tesseract-lang-input', 'phase0-image-crops-input',
+		                'phase0-answer-fill-input',
+		                'phase0-answer-fill-fill-answers-input', 'phase0-answer-fill-fill-explanations-input',
+		                'phase0-answer-fill-overwrite-answers-input', 'phase0-answer-fill-overwrite-explanations-input',
+		                'phase0-answer-fill-include-type-guide-input', 'phase0-answer-fill-type-guide-max-chars-input',
+		                'answer-fill-chunk-tokens-input', 'answer-fill-duckduckgo-input',
+		                'max-data-envelope-tries-input', 'structured-output-style-select',
+		                'structured-output-phase0-select', 'structured-output-phase1a-select', 'structured-output-phase1b-select', 'structured-output-phase2-select',
+		            ].forEach(id => {
+	                getEl(id)?.addEventListener('change', savePipelineConfigToStorage);
+	                getEl(id)?.addEventListener('input', savePipelineConfigToStorage);
             });
             getEl('run-start-from-select')?.addEventListener('change', () => {
                 try { updateUIState(false); } catch { }
