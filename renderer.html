@@ -11012,26 +11012,43 @@
         if (similarMemoOwner) similarMemoOwner.textContent = getMemoOwnerKey(qid);
         if (similarTagOwner) similarTagOwner.textContent = getTagOwnerKey(qid);
 
-        const sims = (typeof findSimilarProblems === 'function') ? findSimilarProblems(qid, th, 120) : [];
-        if (!sims.length) {
+        const groupQids = getSimilarGroupQidsFor(qid) || [];
+        const groupMates = groupQids.filter(x => x && x !== qid);
+        const groupSet = new Set(groupQids);
+        const simsRaw = (typeof findSimilarProblems === 'function') ? findSimilarProblems(qid, th, 120) : [];
+        const sims = (simsRaw || []).filter(r => r && r.qid && r.qid !== qid && !groupSet.has(r.qid));
+        if (!groupMates.length && !sims.length) {
           similarList.innerHTML = '<div class="muted">유사한 문제가 없습니다.</div>';
           return;
         }
-        similarList.innerHTML = sims.map(r => {
-          const p = resolveProblemByQid(r.qid);
-          const typeTitle = p?.__typeTitle ? String(p.__typeTitle) : (problems?.qidType?.[r.qid] || '');
-          const year = extractYearFromQid(r.qid) || '';
-          const tag = getEffectiveTag(r.qid);
-          const score = Math.round((r.score || 0) * 100);
-          return `<div class="problems-item" data-qid="${sanitize(String(r.qid)).replace(/\"/g, '&quot;')}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <strong>${sanitize(r.qid)}</strong>
-            <span class="pill">${score}%</span>
+        const renderRow = (qid0, opts = {}) => {
+          const q = String(qid0 || '').trim();
+          if (!q) return '';
+          const p = resolveProblemByQid(q);
+          const typeTitle = p?.__typeTitle ? String(p.__typeTitle) : (problems?.qidType?.[q] || '');
+          const year = extractYearFromQid(q) || '';
+          const tag = getEffectiveTag(q);
+          const score = Number.isFinite(opts.score) ? Math.round(opts.score * 100) : null;
+          const scorePill = (opts.pillText && score === null) ? `<span class="pill">${sanitize(String(opts.pillText))}</span>` : (score !== null ? `<span class="pill">${score}%</span>` : '');
+          return `<div class="problems-item" data-qid="${sanitize(String(q)).replace(/\"/g, '&quot;')}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <strong>${sanitize(q)}</strong>
+            ${scorePill}
             ${year ? `<span class="pill">${year}</span>` : ''}
             <span class="pill">${tag}</span>
             ${typeTitle ? `<span class="pill">${sanitize(formatTypeLabel(typeTitle))}</span>` : ''}
-            <button class="btn" data-act="goto" data-qid="${sanitize(String(r.qid)).replace(/\"/g, '&quot;')}" style="margin-left:auto;">이동</button>
+            <button class="btn" data-act="goto" data-qid="${sanitize(String(q)).replace(/\"/g, '&quot;')}" style="margin-left:auto;">이동</button>
           </div>`;
-        }).join('');
+        };
+        let html = '';
+        if (groupMates.length) {
+          html += `<div class="muted" style="margin:6px 0 4px;">같은 유사그룹 · ${groupMates.length}문항</div>`;
+          html += groupMates.map(q => renderRow(q, { pillText: '그룹' })).join('');
+        }
+        if (sims.length) {
+          html += `<div class="muted" style="margin:10px 0 4px;">텍스트 유사도 · ${sims.length}문항 (≥ ${th.toFixed(2)})</div>`;
+          html += sims.map(r => renderRow(r.qid, { score: Number(r.score || 0) })).join('');
+        }
+        similarList.innerHTML = html || '<div class="muted">유사한 문제가 없습니다.</div>';
       }
 
       function openSimilarWindowForQid(qid) {
@@ -11101,15 +11118,27 @@
 
       $('#similarCollectBtn')?.addEventListener('click', () => {
         if (!similarFocusQid) return;
-        const th = Number(similarThreshold?.value || 0.78);
-        const sims = (typeof findSimilarProblems === 'function') ? findSimilarProblems(similarFocusQid, th, 200) : [];
-        const qids = [String(similarFocusQid)].concat(sims.map(x => x.qid));
+        const groupQids = getSimilarGroupQidsFor(similarFocusQid);
+        let qids = [];
+        if (groupQids && groupQids.length >= 2) {
+          qids = groupQids.slice();
+        } else {
+          const th = Number(similarThreshold?.value || 0.78);
+          const sims = (typeof findSimilarProblems === 'function') ? findSimilarProblems(similarFocusQid, th, 200) : [];
+          qids = [String(similarFocusQid)].concat(sims.map(x => x.qid));
+        }
         const uniq = Array.from(new Set(qids)).filter(Boolean);
         const items = uniq.map(resolveProblemByQid).filter(Boolean);
         if (!items.length) return;
-        if (typeof window.openCollectionInSolve === 'function') {
-          window.openCollectionInSolve(items, `[유사] ${similarFocusQid}`);
+        if (typeof openProblemCollectionInSolve === 'function') {
+          openProblemCollectionInSolve(items, `[유사] ${similarFocusQid}`);
         } else if (typeof startSolveSession === 'function') {
+          const win = document.getElementById('solveWindow');
+          if (win) {
+            win.classList.add('active');
+            win.style.display = '';
+            try { restoreSavedBox(win, 'fmm_ui_solveWindow'); } catch { }
+          }
           startSolveSession(items, { reviewOnly: true, historyId: 'COLLECT_' + Date.now(), typeTitle: `[유사] ${similarFocusQid}` });
         }
       });
@@ -16260,6 +16289,37 @@
         const n = arr.length;
         if (n <= 1) return [{ items: arr }];
 
+        // Prefer explicit subgroup_tag grouping when present (kept within the same type).
+        // ideology: When the author provided subgroup tags, respect them over fuzzy text similarity.
+        const normalizeSubgroup = (s) => String(s || '')
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '');
+        const subgroupKeyByIdx = new Array(n).fill('');
+        const subgroupMap = new Map(); // key -> indices[]
+        for (let i = 0; i < n; i++) {
+          const p = arr[i] || {};
+          const raw = String(p?.subgroup_tag || p?.subgroupTag || '').trim();
+          if (!raw) continue;
+          const tag = normalizeSubgroup(raw);
+          if (!tag) continue;
+          let typeTitle = String(p?.__typeTitle || '').trim();
+          if (!typeTitle) {
+            try {
+              const qid = String(p?.qid || '').trim();
+              if (qid && problems?.qidType && problems.qidType[qid]) typeTitle = String(problems.qidType[qid] || '').trim();
+            } catch { }
+          }
+          const key = `${typeTitle}::subgroup::${tag}`;
+          subgroupKeyByIdx[i] = key;
+          if (!subgroupMap.has(key)) subgroupMap.set(key, []);
+          subgroupMap.get(key).push(i);
+        }
+        const explicitKeys = new Set();
+        subgroupMap.forEach((idxs, key) => {
+          if (Array.isArray(idxs) && idxs.length >= 2) explicitKeys.add(key);
+        });
+
         const texts = arr.map(p => {
           let raw = stripAnswerEmphasis(p.question_text || '');
           raw = raw.replace(/!\[[^\]]*?\]\([^)]+?\)/g, ' ');
@@ -16292,10 +16352,25 @@
         const groups = [];
         for (let i = 0; i < n; i++) {
           if (used[i]) continue;
+          const k = subgroupKeyByIdx[i];
+          if (k && explicitKeys.has(k)) {
+            const idxs = subgroupMap.get(k) || [];
+            const items = [];
+            idxs.forEach(idx => {
+              if (used[idx]) return;
+              used[idx] = true;
+              items.push(arr[idx]);
+            });
+            groups.push({ items });
+            continue;
+          }
           used[i] = true;
           const items = [arr[i]];
           for (let j = i + 1; j < n; j++) {
             if (used[j]) continue;
+            const kj = subgroupKeyByIdx[j];
+            // Don't "steal" explicit subgroup members into fuzzy groups.
+            if (kj && explicitKeys.has(kj)) continue;
             const sim = jaccard(sh[i], sh[j]);
             if (sim >= THRESH) {
               used[j] = true;
