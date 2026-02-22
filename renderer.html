@@ -1001,6 +1001,18 @@
       background: color-mix(in oklab, var(--accent) 6%, var(--card));
     }
 
+    /* Similar window: highlight the focused/base problem row */
+    .problems-item.similar-base {
+      border: 1px solid color-mix(in oklab, var(--accent) 55%, var(--border));
+      border-bottom: none;
+      background: color-mix(in oklab, var(--accent) 10%, var(--card));
+      border-radius: 10px;
+      margin: 6px;
+    }
+    .problems-item.similar-base:hover {
+      background: color-mix(in oklab, var(--accent) 14%, var(--card));
+    }
+
     @keyframes fmmFlash {
       0% {
         background: color-mix(in oklab, var(--accent) 18%, var(--card));
@@ -10997,7 +11009,6 @@
           return;
         }
         const th = Number(similarThreshold?.value || 0.78);
-        if (similarThresholdLabel) similarThresholdLabel.textContent = th.toFixed(2);
 
         // Ensure groups exist at least once
         try {
@@ -11013,14 +11024,17 @@
         if (similarTagOwner) similarTagOwner.textContent = getTagOwnerKey(qid);
 
         const groupQids = getSimilarGroupQidsFor(qid) || [];
+        const hasGroup = groupQids.length >= 2;
+        const thWrap = similarThreshold?.closest('label');
+        if (thWrap) thWrap.style.display = hasGroup ? 'none' : '';
+        const rebuildBtn = document.getElementById('similarRebuildBtn');
+        if (rebuildBtn) rebuildBtn.style.display = hasGroup ? 'none' : '';
+        if (similarThresholdLabel) similarThresholdLabel.textContent = th.toFixed(2);
+
         const groupMates = groupQids.filter(x => x && x !== qid);
         const groupSet = new Set(groupQids);
-        const simsRaw = (typeof findSimilarProblems === 'function') ? findSimilarProblems(qid, th, 120) : [];
+        const simsRaw = (!hasGroup && typeof findSimilarProblems === 'function') ? findSimilarProblems(qid, th, 120) : [];
         const sims = (simsRaw || []).filter(r => r && r.qid && r.qid !== qid && !groupSet.has(r.qid));
-        if (!groupMates.length && !sims.length) {
-          similarList.innerHTML = '<div class="muted">유사한 문제가 없습니다.</div>';
-          return;
-        }
         const renderRow = (qid0, opts = {}) => {
           const q = String(qid0 || '').trim();
           if (!q) return '';
@@ -11030,7 +11044,8 @@
           const tag = getEffectiveTag(q);
           const score = Number.isFinite(opts.score) ? Math.round(opts.score * 100) : null;
           const scorePill = (opts.pillText && score === null) ? `<span class="pill">${sanitize(String(opts.pillText))}</span>` : (score !== null ? `<span class="pill">${score}%</span>` : '');
-          return `<div class="problems-item" data-qid="${sanitize(String(q)).replace(/\"/g, '&quot;')}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          const cls = `problems-item${opts.isBase ? ' similar-base' : ''}`;
+          return `<div class="${cls}" data-qid="${sanitize(String(q)).replace(/\"/g, '&quot;')}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <strong>${sanitize(q)}</strong>
             ${scorePill}
             ${year ? `<span class="pill">${year}</span>` : ''}
@@ -11040,13 +11055,18 @@
           </div>`;
         };
         let html = '';
+        html += `<div class="muted" style="margin:6px 0 4px;">기준 문제</div>`;
+        html += renderRow(qid, { pillText: '기준', isBase: true });
         if (groupMates.length) {
           html += `<div class="muted" style="margin:6px 0 4px;">같은 유사그룹 · ${groupMates.length}문항</div>`;
           html += groupMates.map(q => renderRow(q, { pillText: '그룹' })).join('');
         }
-        if (sims.length) {
+        if (!hasGroup && sims.length) {
           html += `<div class="muted" style="margin:10px 0 4px;">텍스트 유사도 · ${sims.length}문항 (≥ ${th.toFixed(2)})</div>`;
           html += sims.map(r => renderRow(r.qid, { score: Number(r.score || 0) })).join('');
+        }
+        if (!groupMates.length && !sims.length) {
+          html += '<div class="muted" style="padding:8px 10px;">유사한 문제가 없습니다.</div>';
         }
         similarList.innerHTML = html || '<div class="muted">유사한 문제가 없습니다.</div>';
       }
@@ -16783,39 +16803,65 @@
         // Optional: cluster similar problems into adjacent groups (render-only).
         let orderedItems = items.slice();
         let groups = null;
-	        if (clusterOn && items.length > 2) {
-	          const byQid = new Map(items.map(it => [String(it.p.qid || ''), it]));
-	          groups = clusterSimilarProblemGroups(items.map(it => it.p));
-	          orderedItems = [];
-          groups.forEach((g, gi) => {
-            (g.items || []).forEach(p => {
-              const qid = String(p?.qid || '');
-              const it = byQid.get(qid);
-              if (it) orderedItems.push({ ...it, _group: gi + 1, _groupSize: (g.items || []).length });
-            });
-	          });
-	        }
-	        statsState.filteredProblems = orderedItems.map(it => it.p).filter(Boolean);
+        statsState.lastSimilarityGroupMap = null;
+		        if (clusterOn && items.length > 2) {
+		          const byQid = new Map(items.map(it => [String(it.p.qid || ''), it]));
+		          groups = clusterSimilarProblemGroups(items.map(it => it.p));
+		          // Grouped (>=2) first, then singletons. Within group: year->qid (가나다/ABC).
+		          const groupObjs = (groups || []).map(g => {
+		            const qids = (g?.items || []).map(p => String(p?.qid || '').trim()).filter(Boolean);
+		            qids.sort(canonicalCompareQid);
+		            return { qids, size: qids.length, rep: qids[0] || '' };
+		          });
+		          groupObjs.sort((a, b) => {
+		            const ag = (a.size >= 2) ? 0 : 1;
+		            const bg = (b.size >= 2) ? 0 : 1;
+		            if (ag !== bg) return ag - bg;
+		            return canonicalCompareQid(a.rep, b.rep);
+		          });
 
-	        let htmlOut = '';
-	        let lastGroup = null;
-	        orderedItems.forEach(item => {
-          const st = item._st || getProblemState(item.p.qid);
-          const tag = getEffectiveTag(item.p.qid);
+		          let groupCounter = 0;
+		          const groupMap = {};
+		          orderedItems = [];
+		          groupObjs.forEach(g => {
+		            const isGrouped = g.size >= 2;
+		            const grpId = isGrouped ? (++groupCounter) : null;
+		            if (grpId) groupMap[String(grpId)] = g.qids.slice();
+		            (g.qids || []).forEach(qid => {
+		              const it = byQid.get(String(qid || ''));
+		              if (it) orderedItems.push({ ...it, _group: grpId, _groupSize: g.size });
+		            });
+		          });
+		          statsState.lastSimilarityGroupMap = groupMap;
+		        }
+		        statsState.filteredProblems = orderedItems.map(it => it.p).filter(Boolean);
+
+		        let htmlOut = '';
+		        let lastGroup = null;
+		        let ungroupedHeaderShown = false;
+		        orderedItems.forEach(item => {
+	          const st = item._st || getProblemState(item.p.qid);
+	          const tag = getEffectiveTag(item.p.qid);
           const wrongCount = st.wrongCount || 0;
           const markedCount = item._markedCount || 0;
-          const attempts = st.attempts || 0;
-          const correctCount = st.correctCount || 0;
-          const accuracy = attempts > 0 ? Math.round((correctCount / attempts) * 100) : 0;
-          const checked = statsState.selectedKeys.has(item.key) ? 'checked' : '';
-          if (clusterOn && item._group && item._group !== lastGroup) {
-            htmlOut += `<div class="muted" style="margin:8px 0 4px;">유사 그룹 ${item._group} · ${item._groupSize}문항</div>`;
-            lastGroup = item._group;
-          }
-          htmlOut += `<label class="problems-item">
-            <input type="checkbox" data-stats-key="${item.key}" ${checked}>
-            <span class="tag-badge">${tag}</span>
-            <strong>${sanitize(item.p.qid)}</strong>
+	          const attempts = st.attempts || 0;
+	          const correctCount = st.correctCount || 0;
+	          const accuracy = attempts > 0 ? Math.round((correctCount / attempts) * 100) : 0;
+	          const checked = statsState.selectedKeys.has(item.key) ? 'checked' : '';
+	          if (clusterOn && item._group && item._group !== lastGroup) {
+	            htmlOut += `<div class="muted stats-similar-group-head" data-group="${item._group}" style="margin:8px 0 4px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+	              <span>유사 그룹 ${item._group} · ${item._groupSize}문항</span>
+	              <button class="btn" data-stats-act="collectGroup" data-group="${item._group}" title="이 유사 그룹만 모아 복기합니다.">복기</button>
+	            </div>`;
+	            lastGroup = item._group;
+	          } else if (clusterOn && !item._group && !ungroupedHeaderShown && lastGroup !== null) {
+	            htmlOut += `<div class="muted" style="margin:10px 0 4px;">그 외(유사그룹 없음)</div>`;
+	            ungroupedHeaderShown = true;
+	          }
+	          htmlOut += `<label class="problems-item">
+	            <input type="checkbox" data-stats-key="${item.key}" ${checked}>
+	            <span class="tag-badge">${tag}</span>
+	            <strong>${sanitize(item.p.qid)}</strong>
             ${item.year ? `<span class="pill">${item.year}</span>` : ''}
             <span class="pill">${sanitize(item.p.__typeTitle ? formatTypeLabel(item.p.__typeTitle) : '')}</span>
             ${item.missing ? '<span class="pill">공식정답 없음</span>' : ''}
@@ -16823,11 +16869,33 @@
             ${attempts > 0 ? `<span class="pill">오답 ${wrongCount} / 풀이 ${attempts} · 정답률 ${accuracy}%</span>` : ''}
           </label>`;
         });
-        listEl.innerHTML = htmlOut;
-        listEl.querySelectorAll('input[type="checkbox"][data-stats-key]').forEach(cb => {
-          cb.addEventListener('change', () => {
-            const key = cb.getAttribute('data-stats-key');
-            if (!key) return;
+	        listEl.innerHTML = htmlOut;
+	        listEl.querySelectorAll('button[data-stats-act="collectGroup"][data-group]').forEach(btn => {
+	          btn.addEventListener('click', (e) => {
+	            e.preventDefault();
+	            e.stopPropagation();
+	            const g = String(btn.getAttribute('data-group') || '').trim();
+	            const qids = statsState.lastSimilarityGroupMap?.[g] || [];
+	            if (!Array.isArray(qids) || !qids.length) return;
+	            const list = qids.map(resolveProblemByQid).filter(Boolean);
+	            if (!list.length) return;
+	            const label = `[통계 유사] 그룹 ${g}`;
+	            if (typeof openProblemCollectionInSolve === 'function') openProblemCollectionInSolve(list, label);
+	            else if (typeof startSolveSession === 'function') {
+	              const win = document.getElementById('solveWindow');
+	              if (win) {
+	                win.classList.add('active');
+	                win.style.display = '';
+	                try { restoreSavedBox(win, 'fmm_ui_solveWindow'); } catch { }
+	              }
+	              startSolveSession(list, { reviewOnly: true, historyId: 'COLLECT_' + Date.now(), typeTitle: `[모아보기] ${label}` });
+	            }
+	          });
+	        });
+	        listEl.querySelectorAll('input[type="checkbox"][data-stats-key]').forEach(cb => {
+	          cb.addEventListener('change', () => {
+	            const key = cb.getAttribute('data-stats-key');
+	            if (!key) return;
             if (cb.checked) statsState.selectedKeys.add(key);
             else statsState.selectedKeys.delete(key);
           });
