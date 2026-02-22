@@ -2324,14 +2324,22 @@
 	          <select class="memo-textarea" id="statsPaperSelect" style="min-height:32px;max-width:260px;"></select>
 	        </label>
 	        <button class="btn" id="paperManagerBtn">원본시험지 관리</button>
-		        <label style="display:flex;align-items:center;gap:4px;" title="유사한 문제(문제 텍스트 기준)를 같은 덩어리로 붙여서 보여줍니다.">
-		          <input type="checkbox" id="statsClusterSimilar" checked>
-		          <span>유사도 묶기</span>
-		        </label>
-	        <button class="btn" id="statsFilterMissing">미정답만</button>
-	        <button class="btn" id="statsSelectAllMissing">전체 선택</button>
-	        <button class="btn" id="statsClearSelection">선택 해제</button>
-	        <button class="btn" id="statsLlmSettings">LLM 설정</button>
+			        <label style="display:flex;align-items:center;gap:4px;" title="유사한 문제(문제 텍스트 기준)를 같은 덩어리로 붙여서 보여줍니다.">
+			          <input type="checkbox" id="statsClusterSimilar" checked>
+			          <span>유사도 묶기</span>
+			        </label>
+			        <label title="통계 목록에서 문제 표시 순서를 정합니다.">
+			          정렬
+			          <select class="memo-textarea" id="statsProblemSort" style="min-height:32px;max-width:170px;">
+			            <option value="year_alpha" selected>연도→가나다/ABC</option>
+			            <option value="year">연도순</option>
+			            <option value="alpha">가나다/ABC순</option>
+			          </select>
+			        </label>
+		        <button class="btn" id="statsFilterMissing">미정답만</button>
+		        <button class="btn" id="statsSelectAllMissing">전체 선택</button>
+		        <button class="btn" id="statsClearSelection">선택 해제</button>
+		        <button class="btn" id="statsLlmSettings">LLM 설정</button>
 		        <button class="btn" id="statsCollectFiltered" title="현재 필터 조건의 문제들을 모아 풀이 세션으로 엽니다.">필터 모아보기</button>
 	        <button class="btn-primary" id="statsFillSelected">선택 LLM 채우기</button>
 	      </div>
@@ -2346,13 +2354,16 @@
         <button class="btn" id="sheetDeleteBtn">시험지 삭제</button>
         <button class="btn" id="sheetAddSelected">선택 문제 추가</button>
         <button class="btn" id="sheetRemoveSelected">선택 문제 제거</button>
-        <label>풀이 순서
-          <select class="memo-textarea" id="sheetSolveOrder" style="min-height:32px;max-width:190px;">
-            <option value="similar" selected>유사도 묶기</option>
-            <option value="uid">UID/Q번호 순</option>
-            <option value="sheet">시험지 저장 순</option>
-          </select>
-        </label>
+	        <label>풀이 순서
+	          <select class="memo-textarea" id="sheetSolveOrder" style="min-height:32px;max-width:190px;">
+	            <option value="similar" selected>유사도 묶기</option>
+	            <option value="year_alpha">연도→가나다/ABC</option>
+	            <option value="year">연도순</option>
+	            <option value="alpha">가나다/ABC순</option>
+	            <option value="uid">UID/Q번호 순</option>
+	            <option value="sheet">시험지 저장 순</option>
+	          </select>
+	        </label>
         <button class="btn" id="sheetApplyOrderBtn" title="선택한 풀이 순서를 시험지 자체에 적용(정렬을 저장)합니다.">정렬 적용</button>
         <button class="btn" id="sheetStartSolve">이 시험지만 풀기</button>
         <label title="시험지에서 랜덤으로 N문항만 뽑아 풉니다.">
@@ -16446,6 +16457,18 @@
         if (ya !== yb) return ya - yb;
         return String(a || '').localeCompare(String(b || ''), 'ko');
       }
+      function compareQidBySortMode(a, b, mode) {
+        const m = String(mode || '').trim() || 'year_alpha';
+        if (m === 'alpha') return String(a || '').localeCompare(String(b || ''), 'ko');
+        if (m === 'year') {
+          const ya = yearKeyForQid(a);
+          const yb = yearKeyForQid(b);
+          if (ya !== yb) return ya - yb;
+          return 0; // stable sort keeps original order within the same year
+        }
+        // year_alpha (default)
+        return canonicalCompareQid(a, b);
+      }
 
       function ensureSimilarityCache() {
         if (similarityState.cache) return similarityState.cache;
@@ -16800,25 +16823,27 @@
 	          listEl.innerHTML = '<div class="muted">조건에 맞는 문제가 없습니다.</div>';
 	          return;
 	        }
-        // Optional: cluster similar problems into adjacent groups (render-only).
-        let orderedItems = items.slice();
-        let groups = null;
-        statsState.lastSimilarityGroupMap = null;
-		        if (clusterOn && items.length > 2) {
-		          const byQid = new Map(items.map(it => [String(it.p.qid || ''), it]));
-		          groups = clusterSimilarProblemGroups(items.map(it => it.p));
-		          // Grouped (>=2) first, then singletons. Within group: year->qid (가나다/ABC).
-		          const groupObjs = (groups || []).map(g => {
-		            const qids = (g?.items || []).map(p => String(p?.qid || '').trim()).filter(Boolean);
-		            qids.sort(canonicalCompareQid);
-		            return { qids, size: qids.length, rep: qids[0] || '' };
-		          });
-		          groupObjs.sort((a, b) => {
-		            const ag = (a.size >= 2) ? 0 : 1;
-		            const bg = (b.size >= 2) ? 0 : 1;
-		            if (ag !== bg) return ag - bg;
-		            return canonicalCompareQid(a.rep, b.rep);
-		          });
+	        // Optional: cluster similar problems into adjacent groups (render-only).
+	        let orderedItems = items.slice();
+	        let groups = null;
+	        statsState.lastSimilarityGroupMap = null;
+	        const sortMode = String($('#statsProblemSort')?.value || 'year_alpha').trim() || 'year_alpha';
+	        const cmpQid = (a, b) => compareQidBySortMode(a, b, sortMode);
+			        if (clusterOn && items.length > 2) {
+			          const byQid = new Map(items.map(it => [String(it.p.qid || ''), it]));
+			          groups = clusterSimilarProblemGroups(items.map(it => it.p));
+			          // Grouped (>=2) first, then singletons. Within group: year->qid (가나다/ABC).
+			          const groupObjs = (groups || []).map(g => {
+			            const qids = (g?.items || []).map(p => String(p?.qid || '').trim()).filter(Boolean);
+			            qids.sort(cmpQid);
+			            return { qids, size: qids.length, rep: qids[0] || '' };
+			          });
+			          groupObjs.sort((a, b) => {
+			            const ag = (a.size >= 2) ? 0 : 1;
+			            const bg = (b.size >= 2) ? 0 : 1;
+			            if (ag !== bg) return ag - bg;
+			            return cmpQid(a.rep, b.rep);
+			          });
 
 		          let groupCounter = 0;
 		          const groupMap = {};
@@ -16832,9 +16857,12 @@
 		              if (it) orderedItems.push({ ...it, _group: grpId, _groupSize: g.size });
 		            });
 		          });
-		          statsState.lastSimilarityGroupMap = groupMap;
-		        }
-		        statsState.filteredProblems = orderedItems.map(it => it.p).filter(Boolean);
+			          statsState.lastSimilarityGroupMap = groupMap;
+			        }
+			        if (!clusterOn) {
+			          orderedItems.sort((a, b) => cmpQid(a?.p?.qid, b?.p?.qid));
+			        }
+			        statsState.filteredProblems = orderedItems.map(it => it.p).filter(Boolean);
 
 		        let htmlOut = '';
 		        let lastGroup = null;
@@ -16991,7 +17019,11 @@
         if (orderSel) orderSel.value = sheet.solveOrder || 'similar';
 	        const qids = Array.isArray(sheet.qids) ? sheet.qids : [];
 	        const allProblems = Object.values(statsState.problemMap || {});
-	        const problems = qids.map(qid => allProblems.find(p => p && p.qid === qid)).filter(Boolean);
+	        const order = String(orderSel?.value || sheet.solveOrder || 'similar');
+	        const displayQids = (typeof computeSheetOrderedQids === 'function')
+	          ? computeSheetOrderedQids({ qids: qids.slice() }, order)
+	          : qids;
+	        const problems = displayQids.map(qid => allProblems.find(p => p && p.qid === qid)).filter(Boolean);
         const total = qids.length;
         const historyAll = LS.get(SOLVE_HISTORY_KEY, []);
         const hist = historyAll.filter(h => h && h.sheetId === sheet.id);
@@ -17283,13 +17315,14 @@
 		      $('#statsYearFilter')?.addEventListener('change', statsOnFiltersChanged);
 		      $('#statsWrongOp')?.addEventListener('change', statsOnFiltersChanged);
 		      $('#statsWrongCount')?.addEventListener('input', statsOnFiltersChanged);
-	      $('#statsMarkedOp')?.addEventListener('change', statsOnFiltersChanged);
-	      $('#statsMarkedCount')?.addEventListener('input', statsOnFiltersChanged);
-	      $('#statsClusterSimilar')?.addEventListener('change', statsOnFiltersChanged);
-	      $('#statsPaperSelect')?.addEventListener('change', statsOnFiltersChanged);
-	      $('#statsTypeOrder')?.addEventListener('change', (e) => {
-	        const val = e.target.value || 'guide';
-	        statsState.typeSort = val;
+		      $('#statsMarkedOp')?.addEventListener('change', statsOnFiltersChanged);
+		      $('#statsMarkedCount')?.addEventListener('input', statsOnFiltersChanged);
+		      $('#statsClusterSimilar')?.addEventListener('change', statsOnFiltersChanged);
+		      $('#statsProblemSort')?.addEventListener('change', statsOnFiltersChanged);
+		      $('#statsPaperSelect')?.addEventListener('change', statsOnFiltersChanged);
+		      $('#statsTypeOrder')?.addEventListener('change', (e) => {
+		        const val = e.target.value || 'guide';
+		        statsState.typeSort = val;
 	        statsBuildOverview();
 	      });
 	      $('#statsLlmSettings')?.addEventListener('click', () => toggleAnswerPanel(true));
@@ -17316,10 +17349,19 @@
 			        if ((cfg.markedFilter || 0) > 0) parts.push(`찍음${cfg.markedOp || '>='}${cfg.markedFilter}`);
 			        if (cfg.paperTarget) parts.push(`시험지:${cfg.paperTarget}`);
 			        if (cfg.onlyMissing) parts.push('미정답만');
-	        const label = parts.length ? parts.join(' · ') : '통계 필터';
-	        if (typeof window.openCollectionInSolve === 'function') window.openCollectionInSolve(items, label);
-	        else if (typeof openProblemCollectionInSolve === 'function') openProblemCollectionInSolve(items, label);
-	      });
+		        const label = parts.length ? parts.join(' · ') : '통계 필터';
+		        if (typeof openProblemCollectionInSolve === 'function') {
+		          openProblemCollectionInSolve(items, label);
+		        } else if (typeof startSolveSession === 'function') {
+		          const win = document.getElementById('solveWindow');
+		          if (win) {
+		            win.classList.add('active');
+		            win.style.display = '';
+		            try { restoreSavedBox(win, 'fmm_ui_solveWindow'); } catch { }
+		          }
+		          startSolveSession(items, { reviewOnly: true, historyId: 'COLLECT_' + Date.now(), typeTitle: `[모아보기] ${label}` });
+		        }
+		      });
 
 	      // 시험지 관리 이벤트
 	      $('#sheetSelect')?.addEventListener('change', (e) => {
@@ -17335,6 +17377,7 @@
         if (!sheet) return;
         sheet.solveOrder = e.target.value || 'similar';
         saveSheets();
+        statsRenderSheetDetail();
       });
       $('#sheetRenameBtn')?.addEventListener('click', () => {
         const sheet = findSheet(sheetState.selectedId);
@@ -17390,6 +17433,9 @@
             if (na == null && nb != null) return 1;
             return String(a || '').localeCompare(String(b || ''), 'ko');
           });
+        }
+        if (o === 'alpha' || o === 'year' || o === 'year_alpha') {
+          return qids.slice().sort((a, b) => compareQidBySortMode(a, b, o));
         }
         // similar: order by similarity adjacency (based on question text)
         const allProblems = Object.values(statsState.problemMap || {});
@@ -17502,21 +17548,23 @@
           solveWindow.style.display = '';
           restoreSavedBox(solveWindow, 'fmm_ui_solveWindow');
         }
-        if (typeof startSolveSession === 'function') {
-          const order = String($('#sheetSolveOrder')?.value || 'similar');
-          let ordered = selected;
-          if (order === 'uid') {
-            ordered = selected.slice().sort((a, b) => {
-              const na = extractQuestionNumberFromQid(a?.qid);
-              const nb = extractQuestionNumberFromQid(b?.qid);
-              if (na != null && nb != null && na !== nb) return na - nb;
-              if (na != null && nb == null) return -1;
-              if (na == null && nb != null) return 1;
-              return String(a?.qid || '').localeCompare(String(b?.qid || ''), 'ko');
-            });
-          } else if (order === 'similar') {
-            ordered = clusterSimilarProblems(selected);
-          } // else 'sheet': keep sheet order
+	        if (typeof startSolveSession === 'function') {
+	          const order = String($('#sheetSolveOrder')?.value || 'similar');
+	          let ordered = selected;
+	          if (order === 'uid') {
+	            ordered = selected.slice().sort((a, b) => {
+	              const na = extractQuestionNumberFromQid(a?.qid);
+	              const nb = extractQuestionNumberFromQid(b?.qid);
+	              if (na != null && nb != null && na !== nb) return na - nb;
+	              if (na != null && nb == null) return -1;
+	              if (na == null && nb != null) return 1;
+	              return String(a?.qid || '').localeCompare(String(b?.qid || ''), 'ko');
+	            });
+	          } else if (order === 'alpha' || order === 'year' || order === 'year_alpha') {
+	            ordered = selected.slice().sort((a, b) => compareQidBySortMode(a?.qid, b?.qid, order));
+	          } else if (order === 'similar') {
+	            ordered = clusterSimilarProblems(selected);
+	          } // else 'sheet': keep sheet order
 
           // startSolveSession uses currentTypeTitle; override typeTitle on session afterwards
           startSolveSession(ordered);
@@ -17582,21 +17630,23 @@
           solveWindow.style.display = '';
           restoreSavedBox(solveWindow, 'fmm_ui_solveWindow');
         }
-        if (typeof startSolveSession === 'function') {
-          const order = String($('#sheetSolveOrder')?.value || 'similar');
-          let ordered = picked;
-          if (order === 'uid') {
-            ordered = picked.slice().sort((a, b) => {
-              const na = extractQuestionNumberFromQid(a?.qid);
-              const nb = extractQuestionNumberFromQid(b?.qid);
-              if (na != null && nb != null && na !== nb) return na - nb;
-              if (na != null && nb == null) return -1;
-              if (na == null && nb != null) return 1;
-              return String(a?.qid || '').localeCompare(String(b?.qid || ''), 'ko');
-            });
-          } else if (order === 'similar') {
-            ordered = clusterSimilarProblems(picked);
-          } // else 'sheet': keep random order
+	        if (typeof startSolveSession === 'function') {
+	          const order = String($('#sheetSolveOrder')?.value || 'similar');
+	          let ordered = picked;
+	          if (order === 'uid') {
+	            ordered = picked.slice().sort((a, b) => {
+	              const na = extractQuestionNumberFromQid(a?.qid);
+	              const nb = extractQuestionNumberFromQid(b?.qid);
+	              if (na != null && nb != null && na !== nb) return na - nb;
+	              if (na != null && nb == null) return -1;
+	              if (na == null && nb != null) return 1;
+	              return String(a?.qid || '').localeCompare(String(b?.qid || ''), 'ko');
+	            });
+	          } else if (order === 'alpha' || order === 'year' || order === 'year_alpha') {
+	            ordered = picked.slice().sort((a, b) => compareQidBySortMode(a?.qid, b?.qid, order));
+	          } else if (order === 'similar') {
+	            ordered = clusterSimilarProblems(picked);
+	          } // else 'sheet': keep random order
 
           startSolveSession(ordered);
           if (solveState && solveState.session) {
