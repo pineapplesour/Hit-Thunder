@@ -934,6 +934,59 @@
 		                                기본값: 사용 안 함. 활성화 시 1단계 이후 추가 호출이 발생합니다.
 		                            </div>
 		                        </div>
+		                        <div class="input-group-tight" style="margin-top: 0.75rem;">
+		                            <label class="ui-label" id="phase0-answer-fill-label" data-i18n="phase0AnswerFillLabel">미정답 문제 LLM 채우기 (옵션)</label>
+		                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
+		                                <input type="checkbox" id="phase0-answer-fill-input">
+		                                <span id="phase0-answer-fill-text" data-i18n-html="phase0AnswerFillTextHtml">정답이 없는 문제만 LLM으로 <code>official_answer</code> + <code>official_explanation</code> 채우기 (주의: 공식 아님)</span>
+		                            </label>
+		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" id="phase0-answer-fill-help" data-i18n="phase0AnswerFillHelp">
+		                                기본값: 사용 안 함. 활성화 시 0단계 이후 추가 호출이 발생합니다.
+		                            </div>
+		                        </div>
+		                        <div class="input-group-tight" style="margin-top: 0.25rem; padding-left: 14px;">
+		                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+		                                <label class="muted" style="font-size:12px;">
+		                                    <input type="checkbox" id="phase0-answer-fill-fill-answers-input" checked>
+		                                    <span data-i18n="ppFillAnswersLabel">Fill answers</span>
+		                                </label>
+		                                <label class="muted" style="font-size:12px;">
+		                                    <input type="checkbox" id="phase0-answer-fill-fill-explanations-input" checked>
+		                                    <span data-i18n="ppFillExplanationsLabel">Fill explanations</span>
+		                                </label>
+		                                <label class="muted" style="font-size:12px;">
+		                                    <input type="checkbox" id="phase0-answer-fill-overwrite-answers-input">
+		                                    <span data-i18n="ppOverwriteAnswersLabel">Overwrite existing answers</span>
+		                                </label>
+		                                <label class="muted" style="font-size:12px;">
+		                                    <input type="checkbox" id="phase0-answer-fill-overwrite-explanations-input">
+		                                    <span data-i18n="ppOverwriteExplanationsLabel">Overwrite existing explanations</span>
+		                                </label>
+		                            </div>
+		                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px;">
+		                                <label class="muted" style="font-size:12px;">
+		                                    <input type="checkbox" id="phase0-answer-fill-include-type-guide-input" checked>
+		                                    <span data-i18n="ppIncludeTypeGuideLabel">Include type guide (fmm_source)</span>
+		                                </label>
+		                                <label class="muted" style="font-size:12px;" data-i18n="ppTypeGuideMaxCharsLabel">Type guide max chars</label>
+		                                <input type="number" id="phase0-answer-fill-type-guide-max-chars-input" class="ui-input" min="200" max="200000" value="12000" style="max-width:140px;">
+		                            </div>
+		                        </div>
+		                        <div class="input-group-tight">
+		                            <label for="answer-fill-chunk-tokens-input" class="ui-label" data-i18n="answerFillChunkTokensLabel">0단계: 미정답 풀이 배치 토큰(대략)</label>
+		                            <input type="number" id="answer-fill-chunk-tokens-input" class="ui-input" min="1000" max="400000"
+		                                value="50000">
+		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="answerFillChunkTokensHelp">
+		                                미정답 문제 정답/해설 생성 배치 묶음에만 적용됩니다.
+		                            </div>
+		                        </div>
+		                        <div class="input-group-tight">
+		                            <label class="ui-label" data-i18n="answerFillRefLabel">참고 소스 (옵션)</label>
+		                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
+		                                <input type="checkbox" id="answer-fill-duckduckgo-input">
+		                                <span data-i18n="answerFillDuckDuckGoLabel">DuckDuckGo Instant Answer 참고 (무료, 네트워크 요청 추가)</span>
+		                            </label>
+		                        </div>
 		                    </div>
 		                </details>
 
@@ -1004,60 +1057,6 @@
 		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="subgroupChunkTokensHelp">
 		                                소그룹 생성(유형 내 문제 묶기) 배치 묶음에만 적용됩니다.
 		                            </div>
-		                        </div>
-
-			                        <div class="input-group-tight">
-			                            <label class="ui-label" id="phase0-answer-fill-label" data-i18n="phase0AnswerFillLabel">미정답 문제 LLM 채우기 (옵션)</label>
-			                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
-			                                <input type="checkbox" id="phase0-answer-fill-input">
-			                                <span id="phase0-answer-fill-text" data-i18n-html="phase0AnswerFillTextHtml">정답이 없는 문제만 LLM으로 <code>official_answer</code> + <code>official_explanation</code> 채우기 (주의: 공식 아님)</span>
-			                            </label>
-			                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" id="phase0-answer-fill-help" data-i18n="phase0AnswerFillHelp">
-			                                기본값: 사용 안 함. 활성화 시 0단계 이후 추가 호출이 발생합니다.
-			                            </div>
-			                        </div>
-			                        <div class="input-group-tight" style="margin-top: 0.25rem; padding-left: 14px;">
-			                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-			                                <label class="muted" style="font-size:12px;">
-			                                    <input type="checkbox" id="phase0-answer-fill-fill-answers-input" checked>
-			                                    <span data-i18n="ppFillAnswersLabel">Fill answers</span>
-			                                </label>
-			                                <label class="muted" style="font-size:12px;">
-			                                    <input type="checkbox" id="phase0-answer-fill-fill-explanations-input" checked>
-			                                    <span data-i18n="ppFillExplanationsLabel">Fill explanations</span>
-			                                </label>
-			                                <label class="muted" style="font-size:12px;">
-			                                    <input type="checkbox" id="phase0-answer-fill-overwrite-answers-input">
-			                                    <span data-i18n="ppOverwriteAnswersLabel">Overwrite existing answers</span>
-			                                </label>
-			                                <label class="muted" style="font-size:12px;">
-			                                    <input type="checkbox" id="phase0-answer-fill-overwrite-explanations-input">
-			                                    <span data-i18n="ppOverwriteExplanationsLabel">Overwrite existing explanations</span>
-			                                </label>
-			                            </div>
-			                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px;">
-			                                <label class="muted" style="font-size:12px;">
-			                                    <input type="checkbox" id="phase0-answer-fill-include-type-guide-input" checked>
-			                                    <span data-i18n="ppIncludeTypeGuideLabel">Include type guide (fmm_source)</span>
-			                                </label>
-			                                <label class="muted" style="font-size:12px;" data-i18n="ppTypeGuideMaxCharsLabel">Type guide max chars</label>
-			                                <input type="number" id="phase0-answer-fill-type-guide-max-chars-input" class="ui-input" min="200" max="200000" value="12000" style="max-width:140px;">
-			                            </div>
-			                        </div>
-			                        <div class="input-group-tight">
-			                            <label for="answer-fill-chunk-tokens-input" class="ui-label" data-i18n="answerFillChunkTokensLabel">0단계: 미정답 풀이 배치 토큰(대략)</label>
-			                            <input type="number" id="answer-fill-chunk-tokens-input" class="ui-input" min="1000" max="400000"
-			                                value="50000">
-			                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="answerFillChunkTokensHelp">
-			                                미정답 문제 정답/해설 생성 배치 묶음에만 적용됩니다.
-			                            </div>
-			                        </div>
-		                        <div class="input-group-tight">
-		                            <label class="ui-label" data-i18n="answerFillRefLabel">참고 소스 (옵션)</label>
-		                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
-		                                <input type="checkbox" id="answer-fill-duckduckgo-input">
-		                                <span data-i18n="answerFillDuckDuckGoLabel">DuckDuckGo Instant Answer 참고 (무료, 네트워크 요청 추가)</span>
-		                            </label>
 		                        </div>
 
 		                        <div class="input-group-tight">
