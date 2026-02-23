@@ -987,10 +987,25 @@
 			                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" id="phase0-image-crops-help" data-i18n="phase0ImageCropsHelp">
 			                                기본값: 사용 안 함. 활성화 시 비용/용량이 증가할 수 있습니다.
 			                            </div>
-		                        </div>
-		                        <div class="input-group-tight" style="margin-top: 0.75rem;">
-		                            <label class="ui-label" id="phase1-subgrouping-label" data-i18n="phase1SubgroupingLabel">유형 내 소그룹 (실험)</label>
-		                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
+			                            <div class="input-group-tight" style="margin-top: 0.25rem; padding-left: 14px;" id="phase0-image-crops-settings-wrap">
+			                                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+			                                    <label class="muted" style="font-size:12px;">
+			                                        <input type="checkbox" id="phase0-image-crops-include-unknown-input">
+			                                        <span data-i18n="phase0ImageCropsIncludeUnknownLabel">Include unknown</span>
+			                                    </label>
+			                                    <label class="muted" style="font-size:12px;" data-i18n="phase0ImageCropsMaxPagesLabel">Max pages</label>
+			                                    <input type="number" id="phase0-image-crops-max-pages-input" class="ui-input" min="0" value="0" style="max-width:120px;">
+			                                    <label class="muted" style="font-size:12px;" data-i18n="phase0ImageCropsMaxTokensLabel">Max tokens (approx.)</label>
+			                                    <input type="number" id="phase0-image-crops-max-tokens-input" class="ui-input" min="0" value="0" style="max-width:150px;">
+			                                </div>
+			                                <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="phase0ImageCropsBatchHelp">
+			                                    0이면 무제한. 이 제한은 Smart Router 유닛에만 적용됩니다.
+			                                </div>
+			                            </div>
+			                        </div>
+			                        <div class="input-group-tight" style="margin-top: 0.75rem;">
+			                            <label class="ui-label" id="phase1-subgrouping-label" data-i18n="phase1SubgroupingLabel">유형 내 소그룹 (실험)</label>
+			                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
 		                                <input type="checkbox" id="phase1-subgrouping-input">
 		                                <span id="phase1-subgrouping-text" data-i18n-html="phase1SubgroupingTextHtml">유형 내에서 “한 문장으로 같은 풀이가 가능한” 문제만 <code>subgroup_tag</code>로 묶기 (렌더러 유사도 그룹에 반영)</span>
 		                            </label>
@@ -1809,11 +1824,16 @@
 		                    maxTokensPerRequest: 0,         // 0 = unlimited (text-based estimate)
 		                    unassignedMode: 'extract',      // extract | drop
 		                },
-		                tesseractLang: 'kor+eng',
-		                experimentalImageCrops: false,
-		                // NOTE: This is an "export postprocess"-equivalent fill (same engine as Save Postprocessing)
-		                // and runs after Phase 3 (when fmm_source exists) so the type guide can be attached.
-		                answerFill: {
+			                tesseractLang: 'kor+eng',
+			                experimentalImageCrops: false,
+			                imageCrops: {
+			                    includeUnknown: false,
+			                    maxPagesPerRequest: 0,  // 0 = unlimited
+			                    maxTokensPerRequest: 0, // 0 = unlimited (text-based estimate)
+			                },
+			                // NOTE: This is an "export postprocess"-equivalent fill (same engine as Save Postprocessing)
+			                // and runs after Phase 3 (when fmm_source exists) so the type guide can be attached.
+			                answerFill: {
 		                    enabled: false,
 		                    fillChunkTokens: DEFAULT_CHUNK_TOKENS,
 		                    typeGuideMaxChars: 12000,
@@ -1911,14 +1931,22 @@
             base.runPhases = __computeRunPhases(base.runPlan);
 
 		            // --- phase0 ---
-		            if (cfg?.phase0?.pdfInputMode) base.phase0.pdfInputMode = cfg.phase0.pdfInputMode;
-		            if (cfg?.phase0?.multimodalTransport) base.phase0.multimodalTransport = cfg.phase0.multimodalTransport;
-		            if (cfg?.phase0?.tesseractLang) base.phase0.tesseractLang = cfg.phase0.tesseractLang;
-		            if (typeof cfg?.phase0?.experimentalImageCrops !== 'undefined') base.phase0.experimentalImageCrops = !!cfg.phase0.experimentalImageCrops;
-		            {
-		                const sr = cfg?.phase0?.smartRouter;
-		                const enabled = (typeof sr === 'boolean')
-		                    ? sr
+			            if (cfg?.phase0?.pdfInputMode) base.phase0.pdfInputMode = cfg.phase0.pdfInputMode;
+			            if (cfg?.phase0?.multimodalTransport) base.phase0.multimodalTransport = cfg.phase0.multimodalTransport;
+			            if (cfg?.phase0?.tesseractLang) base.phase0.tesseractLang = cfg.phase0.tesseractLang;
+			            if (typeof cfg?.phase0?.experimentalImageCrops !== 'undefined') base.phase0.experimentalImageCrops = !!cfg.phase0.experimentalImageCrops;
+			            {
+			                const ic0 = (cfg?.phase0?.imageCrops && typeof cfg.phase0.imageCrops === 'object') ? cfg.phase0.imageCrops : {};
+			                base.phase0.imageCrops = {
+			                    includeUnknown: !!(ic0?.includeUnknown ?? false),
+			                    maxPagesPerRequest: __clampInt(ic0?.maxPagesPerRequest ?? ic0?.maxPages ?? 0, { min: 0, max: 9999, fallback: 0 }),
+			                    maxTokensPerRequest: __clampInt(ic0?.maxTokensPerRequest ?? ic0?.maxTokens ?? 0, { min: 0, max: 400000, fallback: 0 }),
+			                };
+			            }
+			            {
+			                const sr = cfg?.phase0?.smartRouter;
+			                const enabled = (typeof sr === 'boolean')
+			                    ? sr
 		                    : !!(sr?.enabled ?? cfg?.phase0?.smartRouterEnabled ?? false);
 		                const batchLimitEnabled = (sr && typeof sr === 'object')
 		                    ? (typeof sr?.batchLimitEnabled === 'boolean' ? sr.batchLimitEnabled : true)
@@ -2087,13 +2115,18 @@
 	                    const unassignedRaw = String(__getStrFromUi('phase0-smart-router-unassigned-select', 'extract') || 'extract').trim().toLowerCase();
 	                    const unassignedMode = (unassignedRaw === 'extract' || unassignedRaw === 'drop') ? unassignedRaw : 'extract';
 	                    return { enabled, batchLimitEnabled, batchLimitMode, maxPagesPerRequest, maxTokensPerRequest, unassignedMode };
-	                })(),
-	                tesseractLang: (__getStrFromUi('tesseract-lang-input', 'kor+eng') || 'kor+eng').trim() || 'kor+eng',
-	                experimentalImageCrops: __getBoolFromUi('phase0-image-crops-input', false),
-	                answerFill: {
-	                    enabled: __getBoolFromUi('phase0-answer-fill-input', false),
-	                    fillChunkTokens: __clampInt(__getStrFromUi('answer-fill-chunk-tokens-input', chunkTokens1b), {
-	                        min: 1000,
+		                })(),
+		                tesseractLang: (__getStrFromUi('tesseract-lang-input', 'kor+eng') || 'kor+eng').trim() || 'kor+eng',
+		                experimentalImageCrops: __getBoolFromUi('phase0-image-crops-input', false),
+		                imageCrops: {
+		                    includeUnknown: __getBoolFromUi('phase0-image-crops-include-unknown-input', false),
+		                    maxPagesPerRequest: __clampInt(__getStrFromUi('phase0-image-crops-max-pages-input', 0), { min: 0, max: 9999, fallback: 0 }),
+		                    maxTokensPerRequest: __clampInt(__getStrFromUi('phase0-image-crops-max-tokens-input', 0), { min: 0, max: 400000, fallback: 0 }),
+		                },
+		                answerFill: {
+		                    enabled: __getBoolFromUi('phase0-answer-fill-input', false),
+		                    fillChunkTokens: __clampInt(__getStrFromUi('answer-fill-chunk-tokens-input', chunkTokens1b), {
+		                        min: 1000,
 	                        max: 400000,
 	                        fallback: chunkTokens1b,
 	                    }),
@@ -2208,13 +2241,16 @@
 	                setVal('phase0-smart-router-batch-mode-select', c.phase0?.smartRouter?.batchLimitMode ?? 'inherit');
 	                setVal('phase0-smart-router-max-pages-input', c.phase0?.smartRouter?.maxPagesPerRequest ?? 0);
 	                setVal('phase0-smart-router-max-tokens-input', c.phase0?.smartRouter?.maxTokensPerRequest ?? 0);
-	                setVal('phase0-smart-router-unassigned-select', c.phase0?.smartRouter?.unassignedMode ?? 'extract');
-	                setVal('tesseract-lang-input', c.phase0?.tesseractLang ?? 'kor+eng');
-	                setChk('phase0-image-crops-input', c.phase0?.experimentalImageCrops ?? false);
-	                setChk('phase0-answer-fill-input', c.phase0?.answerFill?.enabled ?? false);
-	                setChk('phase0-answer-fill-fill-answers-input', c.phase0?.answerFill?.fillAnswers ?? true);
-	                setChk('phase0-answer-fill-fill-explanations-input', c.phase0?.answerFill?.fillExplanations ?? true);
-	                setChk('phase0-answer-fill-overwrite-answers-input', c.phase0?.answerFill?.overwriteAnswers ?? false);
+		                setVal('phase0-smart-router-unassigned-select', c.phase0?.smartRouter?.unassignedMode ?? 'extract');
+		                setVal('tesseract-lang-input', c.phase0?.tesseractLang ?? 'kor+eng');
+		                setChk('phase0-image-crops-input', c.phase0?.experimentalImageCrops ?? false);
+		                setChk('phase0-image-crops-include-unknown-input', c.phase0?.imageCrops?.includeUnknown ?? false);
+		                setVal('phase0-image-crops-max-pages-input', c.phase0?.imageCrops?.maxPagesPerRequest ?? 0);
+		                setVal('phase0-image-crops-max-tokens-input', c.phase0?.imageCrops?.maxTokensPerRequest ?? 0);
+		                setChk('phase0-answer-fill-input', c.phase0?.answerFill?.enabled ?? false);
+		                setChk('phase0-answer-fill-fill-answers-input', c.phase0?.answerFill?.fillAnswers ?? true);
+		                setChk('phase0-answer-fill-fill-explanations-input', c.phase0?.answerFill?.fillExplanations ?? true);
+		                setChk('phase0-answer-fill-overwrite-answers-input', c.phase0?.answerFill?.overwriteAnswers ?? false);
 	                setChk('phase0-answer-fill-overwrite-explanations-input', c.phase0?.answerFill?.overwriteExplanations ?? false);
 	                setChk('phase0-answer-fill-include-type-guide-input', c.phase0?.answerFill?.includeTypeGuide ?? true);
 	                setVal('phase0-answer-fill-type-guide-max-chars-input', c.phase0?.answerFill?.typeGuideMaxChars ?? 12000);
@@ -5722,15 +5758,17 @@ function __extractActualTokens(data) {
          * @param {string} chunkMode - 'file_first' (group by file first) or 'sequential' (original behavior)
          * @returns {Array<Array>} - Array of problem chunks
          */
-        function chunkProblemsRespectingBoundaries(problems, maxTokensPerChunk = DEFAULT_CHUNK_TOKENS, chunkMode = 'file_first') {
-            // Use actual tokenizer if available, otherwise fallback
-            const estimateProblemTokens = (problem) => {
-                const officialExp = problem.official_explanation
-                    ? `\n[Official Explanation]\n${problem.official_explanation}`
-                    : '';
-                const problemText = `${problem.qid}:\n${problem.question_text}\n${problem.answer_choices ? 'Choices: ' + problem.answer_choices : ''}${officialExp}\n---`;
-                return __estimateTokens(problemText);
-            };
+	        function chunkProblemsRespectingBoundaries(problems, maxTokensPerChunk = DEFAULT_CHUNK_TOKENS, chunkMode = 'file_first') {
+	            // Use actual tokenizer if available, otherwise fallback
+	            const estimateProblemTokens = (problem) => {
+	                const officialExp = problem.official_explanation
+	                    ? `\n[Official Explanation]\n${__stripDataUriImagesForLlm(problem.official_explanation)}`
+	                    : '';
+	                const qText = __stripDataUriImagesForLlm(problem.question_text);
+	                const cText = problem.answer_choices ? __stripDataUriImagesForLlm(problem.answer_choices) : '';
+	                const problemText = `${problem.qid}:\n${qText}\n${cText ? 'Choices: ' + cText : ''}${officialExp}\n---`;
+	                return __estimateTokens(problemText);
+	            };
 
             // For file_first mode, group problems by paperName first
             if (chunkMode === 'file_first') {
@@ -5840,28 +5878,39 @@ function __extractActualTokens(data) {
             return chunks;
         }
 
-        /**
-         * Convert problem array to text for LLM
-         */
-        function problemsToText(problems) {
-            return problems.map(q =>
-                `${q.qid}:\n${q.question_text}\n${q.answer_choices ? 'Choices: ' + q.answer_choices : ''}\n---`
-            ).join('\n\n');
-        }
+	        /**
+	         * Convert problem array to text for LLM
+	         */
+	        function __stripDataUriImagesForLlm(text) {
+	            let s = String(text ?? '');
+	            // Remove markdown images with data URIs (can be huge)
+	            s = s.replace(/!\[[^\]]*]\(data:[^)]+\)/gi, '[image]');
+	            // Remove HTML data-uri images
+	            s = s.replace(/<\s*img\b[^>]*\bsrc\s*=\s*["']data:[^"']+["'][^>]*>/gi, '[image]');
+	            // Remove raw data:image base64 blobs that may appear inline
+	            s = s.replace(/data:image\/[^;\s]+;base64,[a-z0-9+/=]+/gi, '[image]');
+	            return s;
+	        }
+
+	        function problemsToText(problems) {
+	            return problems.map(q =>
+	                `${q.qid}:\n${__stripDataUriImagesForLlm(q.question_text)}\n${q.answer_choices ? 'Choices: ' + __stripDataUriImagesForLlm(q.answer_choices) : ''}\n---`
+	            ).join('\n\n');
+	        }
 
         // Interleave each problem with its official explanation (if present).
-        function problemsToTextInterleaved(arr) {
-            return (arr || []).map(q => {
-                const header =
-                    `${q.qid}:
-	${q.question_text}
-	${q.answer_choices ? 'Choices: ' + q.answer_choices : ''}`;
-                const officialExp = q.official_explanation
-                    ? `\n[Official Explanation]\n${q.official_explanation}`
-                    : '';
-                return `${header}${officialExp}\n---`;
-            }).join('\n\n');
-        }
+	        function problemsToTextInterleaved(arr) {
+	            return (arr || []).map(q => {
+	                const header =
+	                    `${q.qid}:
+		${__stripDataUriImagesForLlm(q.question_text)}
+		${q.answer_choices ? 'Choices: ' + __stripDataUriImagesForLlm(q.answer_choices) : ''}`;
+	                const officialExp = q.official_explanation
+	                    ? `\n[Official Explanation]\n${__stripDataUriImagesForLlm(q.official_explanation)}`
+	                    : '';
+	                return `${header}${officialExp}\n---`;
+	            }).join('\n\n');
+	        }
 
         const COVERAGE_MAX_TOKENS_DEFAULT = 10000;
         const COVERAGE_PATCH_MAX_ROUNDS = 3;
@@ -7788,16 +7837,25 @@ function __extractActualTokens(data) {
             return m ? m[1].trim() : '';
         }
 
-        // Phase 0 QA item
-        function parseQAItem(value) {
-            return {
-                qid: parseTag(value, 'qid') || null,
-                question_text: parseTag(value, 'question_text'),
-                answer_choices: parseTag(value, 'answer_choices') || '',
-                official_answer: parseTag(value, 'official_answer') || null,
-                official_explanation: parseTag(value, 'official_explanation') || null
-            };
-        }
+	        // Phase 0 QA item
+	        function parseQAItem(value) {
+	            const hvRaw = String(parseTag(value, 'has_visual') || '').trim().toLowerCase();
+	            const has_visual = (() => {
+	                if (!hvRaw) return null; // missing -> unknown
+	                if (hvRaw === '1' || hvRaw === 'true' || hvRaw === 'yes' || hvRaw === 'y' || hvRaw === 'o' || hvRaw === '있음') return 1;
+	                if (hvRaw === '0' || hvRaw === 'false' || hvRaw === 'no' || hvRaw === 'n' || hvRaw === 'x' || hvRaw === '없음') return 0;
+	                if (hvRaw === 'unknown' || hvRaw === '?' || hvRaw === 'maybe') return null;
+	                return null;
+	            })();
+	            return {
+	                qid: parseTag(value, 'qid') || null,
+	                question_text: parseTag(value, 'question_text'),
+	                answer_choices: parseTag(value, 'answer_choices') || '',
+	                official_answer: parseTag(value, 'official_answer') || null,
+	                official_explanation: parseTag(value, 'official_explanation') || null,
+	                has_visual
+	            };
+	        }
 
 
 	        // NEW: Build a stable, global question ID that encodes which paper it came from.
@@ -8070,12 +8128,13 @@ For EVERY question and sub-question, output ONE <item> per question inside:
   <item>...</item>
 </data>
 
-Each <item> MUST include:
-<qid>Unique question id like "Q1", "Q1a", "Q2"</qid>
-<question_text>The full question text. If the question includes any images, diagrams, graphs, circuits, or other non-textual elements, describe them with extreme detail inside this tag. Your description must be a perfect textual substitute for the visual, capturing all labels, values, connections, and relationships, so that nothing is lost from the original problem.</question_text>
-<answer_choices>All answer choices if this is a multiple choice question (e.g., "A) ... B) ... C) ... D) ..."), otherwise leave empty</answer_choices>
-<official_answer>The final correct answer ONLY if explicitly shown in the paper (answer key, solution, etc.). If not shown, leave empty.</official_answer>
-<official_explanation>The official explanation/solution ONLY if explicitly provided in the paper. If not provided, leave empty.</official_explanation>
+	Each <item> MUST include:
+	<qid>Unique question id like "Q1", "Q1a", "Q2"</qid>
+	<question_text>The full question text. If the question includes any images, diagrams, graphs, circuits, or other non-textual elements, describe them with extreme detail inside this tag. Your description must be a perfect textual substitute for the visual, capturing all labels, values, connections, and relationships, so that nothing is lost from the original problem.</question_text>
+	<answer_choices>All answer choices if this is a multiple choice question (e.g., "A) ... B) ... C) ... D) ..."), otherwise leave empty</answer_choices>
+	<official_answer>The final correct answer ONLY if explicitly shown in the paper (answer key, solution, etc.). If not shown, leave empty.</official_answer>
+	<official_explanation>The official explanation/solution ONLY if explicitly provided in the paper. If not provided, leave empty.</official_explanation>
+	<has_visual>Write exactly one of: 1, 0, unknown. 1 = this question uses a relevant non-text visual (figure/table/diagram/graph/photo) in the document; 0 = purely text; unknown = cannot be determined from the provided input.</has_visual>
 
 	CRITICAL RULES:
 	- Do NOT solve problems yourself to generate answers
@@ -8088,9 +8147,9 @@ Each <item> MUST include:
 	- Extract ONLY what is actually present in the document
 	- Do not skip sub-questions; make Q3a, Q3b, etc as separate blocks
 	- No commentary outside <data>...</data>
-- Faithfully describe all visuals: Your primary goal is to extract 100% of the problem's information. For any non-textual content, provide a textual description so complete that a person can solve the problem without ever seeing the original image.
-- Visual-description safety: Do NOT reveal/guess the answer by naming the object/entity/category unless it is explicitly written/labeled in the document. Describe what is visible (shape, parts, inscriptions, arrangement, labels, values) without adding identifying claims that would shortcut the question.
-- When transcribing equations or variables from OCR, write them in LaTeX using $...$ or $$...$$ and **never** wrap LaTeX in backticks.`
+	- Faithfully describe all visuals: Your primary goal is to extract 100% of the problem's information. For any non-textual content, provide a textual description so complete that a person can solve the problem without ever seeing the original image.
+	- Visual-description safety: Do NOT reveal/guess the answer by naming the object/entity/category unless it is explicitly written/labeled in the document. Describe what is visible (shape, parts, inscriptions, arrangement, labels, values) without adding identifying claims that would shortcut the question.
+	- When transcribing equations or variables from OCR, write them in LaTeX using $...$ or $$...$$ and **never** wrap LaTeX in backticks.`
             },
             classifier_standard: {
                 system:
@@ -9734,17 +9793,18 @@ Now extract all problems.`;
                         }
                     } catch { }
 
-                    extractedQasByQid[globalQid] = {
-                        qid: globalQid,
-                        local_qid: qa.qid,
-                        paperName: basePaperName,
-                        question_text,
-                        answer_choices,
-                        official_answer: qa.official_answer,
-                        official_explanation: qa.official_explanation,
-                        __unitImages: (paper.type === 'pdf' && Array.isArray(paper.images) && paper.images.length) ? paper.images : null,
-                    };
-                });
+	                    extractedQasByQid[globalQid] = {
+	                        qid: globalQid,
+	                        local_qid: qa.qid,
+	                        paperName: basePaperName,
+	                        question_text,
+	                        answer_choices,
+	                        official_answer: qa.official_answer,
+	                        official_explanation: qa.official_explanation,
+	                        has_visual: qa.has_visual,
+	                        __unitImages: (paper.type === 'pdf' && Array.isArray(paper.images) && paper.images.length) ? paper.images : null,
+	                    };
+	                });
 
                 if (dedupedChoicesN > 0) {
                     logger.info(context, `Extraction hygiene: removed duplicate choice blocks in ${dedupedChoicesN} item(s).`);
@@ -9761,13 +9821,223 @@ Now extract all problems.`;
             (results || []).forEach(list => {
                 if (Array.isArray(list)) out.push(...list);
             });
-            return out;
-        }
+	            return out;
+	        }
 
-        async function incrementalLocateAndAttachImageCrops(questions, contextBase = 'IncImageCrop') {
-            // Experimental: ask LLM to locate figure crops within the unit images.
-            // Stores crops by prepending markdown `![img](data:...)` to question_text.
-            const byPaper = new Map();
+	        function __packAtomicQidsToCropBatches(candidates, { maxPagesPerRequest = 0, maxTokensPerRequest = 0 } = {}) {
+	            const maxPages = Number.isFinite(maxPagesPerRequest) && maxPagesPerRequest > 0 ? maxPagesPerRequest : Infinity;
+	            const maxTokens = Number.isFinite(maxTokensPerRequest) && maxTokensPerRequest > 0 ? maxTokensPerRequest : Infinity;
+	            const items = Array.isArray(candidates) ? candidates : [];
+
+	            const ordered = items.slice().sort((a, b) => {
+	                const ap = Number.isFinite(a?.minPage) ? a.minPage : Infinity;
+	                const bp = Number.isFinite(b?.minPage) ? b.minPage : Infinity;
+	                if (ap !== bp) return ap - bp;
+	                return String(a?.qid || '').localeCompare(String(b?.qid || ''));
+	            });
+
+	            const batches = [];
+	            let cur = { items: [], pagesSet: new Set(), estTokens: 0 };
+	            const flush = () => {
+	                if (!cur.items.length) return;
+	                const pages = Array.from(cur.pagesSet).filter(p => Number.isFinite(p)).sort((a, b) => a - b);
+	                batches.push({ items: cur.items.slice(), pages, estTokens: cur.estTokens });
+	                cur = { items: [], pagesSet: new Set(), estTokens: 0 };
+	            };
+
+	            for (const it of ordered) {
+	                const pages = Array.isArray(it?.pages) ? it.pages : [];
+	                const tok = Number.isFinite(it?.estTokens) ? it.estTokens : 0;
+	                const nextPages = new Set(cur.pagesSet);
+	                pages.forEach(p => nextPages.add(p));
+	                const wouldExceed = (cur.items.length > 0) && ((nextPages.size > maxPages) || ((cur.estTokens + tok) > maxTokens));
+	                if (wouldExceed) flush();
+
+	                // Atomic QID: never split a single QID across batches.
+	                cur.items.push(it);
+	                pages.forEach(p => cur.pagesSet.add(p));
+	                cur.estTokens += tok;
+	            }
+	            flush();
+	            return batches;
+	        }
+
+	        async function __locateAndAttachImageCropsSmartRouterUnit(questions, {
+	            unitImages,
+	            unitPageNums,
+	            targetQidPages,
+	            cropCfg,
+	            contextBase = 'SmartImageCrop',
+	        } = {}) {
+	            const imgs = Array.isArray(unitImages) ? unitImages : [];
+	            const pageNums = Array.isArray(unitPageNums) ? unitPageNums : [];
+	            const mapLocalToPages = (targetQidPages && typeof targetQidPages === 'object') ? targetQidPages : null;
+	            if (!imgs.length || !pageNums.length || !mapLocalToPages) return questions;
+
+	            const cfg = (cropCfg && typeof cropCfg === 'object') ? cropCfg : {};
+	            const includeUnknown = !!(cfg?.includeUnknown ?? false);
+	            const maxPagesPerRequest = __clampInt(cfg?.maxPagesPerRequest ?? 0, { min: 0, max: 9999, fallback: 0 });
+	            const maxTokensPerRequest = __clampInt(cfg?.maxTokensPerRequest ?? 0, { min: 0, max: 400000, fallback: 0 });
+
+	            const idxByPage = new Map();
+	            for (let i = 0; i < pageNums.length; i++) {
+	                const p = Number(pageNums[i]);
+	                if (!Number.isFinite(p)) continue;
+	                idxByPage.set(p, i);
+	            }
+
+	            const stripDataUris = (text) => {
+	                let s = String(text ?? '');
+	                s = s.replace(/!\[[^\]]*]\(data:[^)]+\)/gi, '[image]');
+	                s = s.replace(/<\s*img\b[^>]*\bsrc\s*=\s*["']data:[^"']+["'][^>]*>/gi, '[image]');
+	                s = s.replace(/data:image\/[^;\s]+;base64,[a-z0-9+/=]+/gi, '[image]');
+	                return s;
+	            };
+
+	            const cand = [];
+	            (questions || []).forEach(q => {
+	                const hv = (typeof q?.has_visual === 'number') ? q.has_visual : null;
+	                if (hv === 0) return;
+	                if (hv == null && !includeUnknown) return;
+
+	                const globalQid = String(q?.qid || '').trim();
+	                const localQid = String(q?.local_qid || '').trim();
+	                if (!globalQid || !localQid) return;
+
+	                const rawPages = mapLocalToPages[localQid];
+	                const pages = Array.isArray(rawPages)
+	                    ? rawPages.map(x => parseInt(x, 10)).filter(p => Number.isFinite(p) && idxByPage.has(p)).sort((a, b) => a - b)
+	                    : [];
+	                if (!pages.length) return;
+
+	                const stem = stripDataUris(String(q?.question_text || '')).slice(0, 400);
+	                const brief = `QID: ${globalQid}\nSTEM:\n${stem}`;
+	                cand.push({
+	                    qid: globalQid,
+	                    q,
+	                    pages,
+	                    minPage: pages[0],
+	                    brief,
+	                    estTokens: __countTokens(brief),
+	                });
+	            });
+
+	            if (!cand.length) return questions;
+
+	            const batches = __packAtomicQidsToCropBatches(cand, { maxPagesPerRequest, maxTokensPerRequest });
+	            const sys = `You are a Figure Crop Locator.
+
+Goal: For each question, if there is a relevant non-text visual (figure/table/diagram/photo/graph) on the provided images, return a tight crop rectangle.
+
+Output format:
+<data>
+  <item>
+    <qid>...</qid>
+    <page_index>1</page_index>  <!-- 1-based index within provided images -->
+    <x0>0.12</x0><y0>0.34</y0><x1>0.56</x1><y1>0.78</y1> <!-- normalized 0..1 -->
+  </item>
+  ...
+</data>
+
+Rules:
+- If unsure or no relevant visual for that qid: omit that qid (do not guess).
+- Do NOT include any extra commentary outside <data>.
+- Do NOT leak the answer in text; this tool is only for cropping.`;
+
+	            const byQid = new Map(cand.map(c => [c.qid, c.q]));
+
+	            for (let bi = 0; bi < batches.length; bi++) {
+	                const b = batches[bi];
+	                const pages = Array.isArray(b?.pages) ? b.pages : [];
+	                const items = Array.isArray(b?.items) ? b.items : [];
+	                if (!pages.length || !items.length) continue;
+
+	                const images = pages.map(p => {
+	                    const idx = idxByPage.get(p);
+	                    return Number.isFinite(idx) ? imgs[idx] : null;
+	                }).filter(Boolean);
+	                if (!images.length) continue;
+
+	                const brief = items.map(x => x.brief).join('\n\n---\n\n');
+	                const ctxLabel = `${contextBase}-B${bi + 1}/${batches.length}`;
+	                const content = [{ type: 'text', text: `QUESTIONS:\n\n${brief}\n\nReturn crops only for questions that have a relevant visual.` }];
+	                images.forEach(img => content.push({ type: 'image_url', image_url: { url: img } }));
+	                const payload = { model: getApiConfig().model, messages: [{ role: 'system', content: sys }, { role: 'user', content }] };
+	                const itemsOut = await requestAndParseDataEnvelope(payload, ctxLabel, { phase: 'phase0', allowEmpty: true });
+
+	                const cropsByQid = new Map();
+	                (itemsOut || []).forEach(it => {
+	                    try {
+	                        const qid = parseTag(it.value, 'qid');
+	                        const pageIdx = parseInt(parseTag(it.value, 'page_index'), 10);
+	                        const x0 = parseFloat(parseTag(it.value, 'x0'));
+	                        const y0 = parseFloat(parseTag(it.value, 'y0'));
+	                        const x1 = parseFloat(parseTag(it.value, 'x1'));
+	                        const y1 = parseFloat(parseTag(it.value, 'y1'));
+	                        if (!qid) return;
+	                        if (!Number.isFinite(pageIdx) || pageIdx < 1 || pageIdx > images.length) return;
+	                        if (![x0, y0, x1, y1].every(Number.isFinite)) return;
+	                        const rect = { page_index: pageIdx, x0, y0, x1, y1 };
+	                        if (!cropsByQid.has(qid)) cropsByQid.set(qid, []);
+	                        cropsByQid.get(qid).push(rect);
+	                    } catch { }
+	                });
+
+	                // Reuse the existing crop+attach logic (up to 2 crops per question)
+	                const cropImage = async (imgUrl, rect01) => {
+	                    const x0 = Math.max(0, Math.min(1, Number(rect01?.x0 ?? rect01?.x ?? 0)));
+	                    const y0 = Math.max(0, Math.min(1, Number(rect01?.y0 ?? rect01?.y ?? 0)));
+	                    const x1 = Math.max(0, Math.min(1, Number(rect01?.x1 ?? (x0 + Number(rect01?.w ?? 0)) ?? 1)));
+	                    const y1 = Math.max(0, Math.min(1, Number(rect01?.y1 ?? (y0 + Number(rect01?.h ?? 0)) ?? 1)));
+	                    if (!(x1 > x0) || !(y1 > y0)) return null;
+	                    const img = new Image();
+	                    img.crossOrigin = 'anonymous';
+	                    const loaded = new Promise((resolve, reject) => {
+	                        img.onload = () => resolve();
+	                        img.onerror = () => reject(new Error('Image load failed'));
+	                    });
+	                    img.src = imgUrl;
+	                    await loaded;
+	                    const sx = Math.floor(x0 * img.width);
+	                    const sy = Math.floor(y0 * img.height);
+	                    const sw = Math.max(1, Math.floor((x1 - x0) * img.width));
+	                    const sh = Math.max(1, Math.floor((y1 - y0) * img.height));
+	                    const canvas = document.createElement('canvas');
+	                    canvas.width = sw;
+	                    canvas.height = sh;
+	                    const ctx = canvas.getContext('2d');
+	                    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+	                    return canvas.toDataURL('image/jpeg', 0.9);
+	                };
+
+	                for (const [qid, rects] of cropsByQid.entries()) {
+	                    const q = byQid.get(qid);
+	                    if (!q) continue;
+	                    const list = Array.isArray(rects) ? rects : [];
+	                    if (!list.length) continue;
+	                    const imgsMd = [];
+	                    for (let ri = 0; ri < Math.min(2, list.length); ri++) {
+	                        const r = list[ri];
+	                        const pageUrl = images[r.page_index - 1];
+	                        try {
+	                            const crop = await cropImage(pageUrl, r);
+	                            if (crop) imgsMd.push(`![img](${crop})`);
+	                        } catch { }
+	                    }
+	                    if (imgsMd.length) {
+	                        const original = String(q.question_text || '');
+	                        q.question_text = `${imgsMd.join('\n\n')}\n\n${original}`.trim();
+	                    }
+	                }
+	            }
+
+	            return questions;
+	        }
+
+	        async function incrementalLocateAndAttachImageCrops(questions, contextBase = 'IncImageCrop') {
+	            // Experimental: ask LLM to locate figure crops within the unit images.
+	            // Stores crops by prepending markdown `![img](data:...)` to question_text.
+	            const byPaper = new Map();
             (questions || []).forEach(q => {
                 const imgs = q?.__unitImages;
                 if (!Array.isArray(imgs) || imgs.length === 0) return;
@@ -10912,16 +11182,17 @@ Now extract all problems.`;
                                 }
                             } catch { }
 
-	                            extractedQasByQid[globalQid] = {
-	                                local_qid: localQid,
-	                                paperName: basePaperName,
-	                                question_text,
-	                                answer_choices,
-	                                official_answer: qa.official_answer,
-	                                official_explanation: qa.official_explanation
-	                            };
-	                        }
-	                    });
+		                            extractedQasByQid[globalQid] = {
+		                                local_qid: localQid,
+		                                paperName: basePaperName,
+		                                question_text,
+		                                answer_choices,
+		                                official_answer: qa.official_answer,
+		                                official_explanation: qa.official_explanation,
+		                                has_visual: qa.has_visual
+		                            };
+		                        }
+		                    });
 	                    if (targetSet) {
 	                        const missing = targetLocalQids.filter(q => !seenTargetLocal.has(q));
 	                        if (ignoredNonTargetN > 0) {
@@ -10935,21 +11206,41 @@ Now extract all problems.`;
 	                        logger.info(context, `Extraction hygiene: removed duplicate choice blocks in ${dedupedChoicesN} item(s).`);
 	                    }
 	
-	                    if (enableImageCrops && Array.isArray(unitImages) && unitImages.length > 0) {
-	                        try {
-	                            const list = Object.entries(extractedQasByQid).map(([qid, qa]) => {
-	                                try { qa.qid = qid; } catch { }
-	                                try { qa.__unitImages = unitImages; } catch { }
-	                                return qa;
-	                            });
-	                            if (list.length) {
-	                                logger.info(context, `이미지 크롭(전역 옵션) 시도: 문제 ${list.length}개 · 페이지 ${unitImages.length}개`);
-	                                await incrementalLocateAndAttachImageCrops(list, `${context}-Crop`);
-	                            }
-	                        } catch (e) {
-	                            logger.warn(context, `이미지 크롭 실패(계속 진행): ${e?.message || e}`);
-	                        } finally {
-	                            try { Object.values(extractedQasByQid).forEach(qa => { delete qa.__unitImages; }); } catch { }
+		                    if (enableImageCrops && Array.isArray(unitImages) && unitImages.length > 0) {
+		                        try {
+		                            const list = Object.entries(extractedQasByQid).map(([qid, qa]) => {
+		                                try { qa.qid = qid; } catch { }
+		                                try { qa.__unitImages = unitImages; } catch { }
+		                                return qa;
+		                            });
+		                            if (list.length) {
+		                                const isSmartUnit =
+		                                    !!paper?.smartRouter &&
+		                                    Array.isArray(paper?.pageNums) &&
+		                                    paper.pageNums.length > 0 &&
+		                                    paper?.targetQidPages &&
+		                                    typeof paper.targetQidPages === 'object';
+		                                if (isSmartUnit) {
+		                                    logger.info(
+		                                        context,
+		                                        `이미지 크롭(스마트/QID 기준) 시도: 문제 ${list.length}개 · 페이지 ${unitImages.length}개 (unknown 포함=${(pCfg?.phase0?.imageCrops?.includeUnknown ?? false) ? 'on' : 'off'})`
+		                                    );
+		                                    await __locateAndAttachImageCropsSmartRouterUnit(list, {
+		                                        unitImages,
+		                                        unitPageNums: paper.pageNums,
+		                                        targetQidPages: paper.targetQidPages,
+		                                        cropCfg: pCfg?.phase0?.imageCrops,
+		                                        contextBase: `${context}-Crop`,
+		                                    });
+		                                } else {
+		                                    logger.info(context, `이미지 크롭(전역 옵션) 시도: 문제 ${list.length}개 · 페이지 ${unitImages.length}개`);
+		                                    await incrementalLocateAndAttachImageCrops(list, `${context}-Crop`);
+		                                }
+		                            }
+		                        } catch (e) {
+		                            logger.warn(context, `이미지 크롭 실패(계속 진행): ${e?.message || e}`);
+		                        } finally {
+		                            try { Object.values(extractedQasByQid).forEach(qa => { delete qa.__unitImages; }); } catch { }
 	                        }
 	                    }
 	
@@ -15573,12 +15864,13 @@ ${explanationWithGlobal}
                         getEl('global-key-split-count-input').value = (Number.isFinite(gkc) && gkc > 0) ? `${gkc}` : '';
                     }
                     try {
-                        if (uiCfg.pipelineConfig && typeof uiCfg.pipelineConfig === 'object') {
-                            applyPipelineConfigToUi(uiCfg.pipelineConfig);
-                            localStorage.setItem(EXP_CONFIG_STORAGE_KEY, JSON.stringify(uiCfg.pipelineConfig));
-                            try { getEl('phase0-smart-router-batch-limit-enabled-input')?.dispatchEvent(new Event('change')); } catch { }
-                        }
-                    } catch { }
+	                        if (uiCfg.pipelineConfig && typeof uiCfg.pipelineConfig === 'object') {
+	                            applyPipelineConfigToUi(uiCfg.pipelineConfig);
+	                            localStorage.setItem(EXP_CONFIG_STORAGE_KEY, JSON.stringify(uiCfg.pipelineConfig));
+	                            try { getEl('phase0-smart-router-batch-limit-enabled-input')?.dispatchEvent(new Event('change')); } catch { }
+	                            try { getEl('phase0-image-crops-input')?.dispatchEvent(new Event('change')); } catch { }
+	                        }
+	                    } catch { }
 
                     // Restore API Config
                     const apiCfg = state.apiConfig || {};
@@ -15944,13 +16236,17 @@ ${explanationWithGlobal}
 	                statusStoppedSubtext: 'Stopped by user.',
 	                statusTitleError: 'Error',
 	                statusErrorSubtext: 'An error occurred. Check the logs.',
-	                phase0ImageCropsLabel: 'Figure/Diagram Crops (optional)',
-	                phase0ImageCropsTextHtml: 'For questions with figures/diagrams: prepend image crops to <code>question_text</code> as <code>![img](data:...)</code>',
-	                phase0ImageCropsHelp: 'Default: off. Enabling can increase cost/file size.',
-	                phase0MultimodalTransportLabel: 'Phase 0: Multimodal input transport',
-	                phase0MultimodalTransportImages: 'Images + PDF text (current)',
-	                phase0MultimodalTransportPdf: 'PDF + PDF text (experimental)',
-	                phase0MultimodalTransportHelp: 'Default keeps the current image+rawText flow. “PDF + text” attaches the PDF to the model (no local rendering).',
+		                phase0ImageCropsLabel: 'Figure/Diagram Crops (optional)',
+		                phase0ImageCropsTextHtml: 'For questions with figures/diagrams: prepend image crops to <code>question_text</code> as <code>![img](data:...)</code>',
+		                phase0ImageCropsHelp: 'Default: off. Enabling can increase cost/file size.',
+		                phase0ImageCropsIncludeUnknownLabel: 'Include unknown',
+		                phase0ImageCropsMaxPagesLabel: 'Max pages',
+		                phase0ImageCropsMaxTokensLabel: 'Max tokens (approx.)',
+		                phase0ImageCropsBatchHelp: '0 means unlimited. These limits apply only to Smart Router units.',
+		                phase0MultimodalTransportLabel: 'Phase 0: Multimodal input transport',
+		                phase0MultimodalTransportImages: 'Images + PDF text (current)',
+		                phase0MultimodalTransportPdf: 'PDF + PDF text (experimental)',
+		                phase0MultimodalTransportHelp: 'Default keeps the current image+rawText flow. “PDF + text” attaches the PDF to the model (no local rendering).',
 	                phase0SmartRouterLabel: 'Phase 0: Smart QID Router (experimental)',
 	                phase0SmartRouterTextHtml: 'Attach PDF → route <code>Page→QID</code> → extract by QID batches (never splits atomic QID blocks)',
 	                phase0SmartRouterHelp: 'Batch limit is controlled below. (Default: inherit split-pages setting)',
@@ -16330,13 +16626,17 @@ ${explanationWithGlobal}
 	                statusStoppedSubtext: '사용자에 의해 중단되었습니다.',
 	                statusTitleError: '오류',
 	                statusErrorSubtext: '오류가 발생했습니다. 로그를 확인하세요.',
-	                phase0ImageCropsLabel: '그림/도표 크롭 (옵션)',
-	                phase0ImageCropsTextHtml: '그림/도표가 있는 문제: 이미지 크롭을 <code>question_text</code> 앞에 <code>![img](data:...)</code>로 삽입',
-	                phase0ImageCropsHelp: '기본값: 사용 안 함. 활성화 시 비용/용량이 증가할 수 있습니다.',
-	                phase0MultimodalTransportLabel: '0단계: 멀티모달 입력 전송',
-	                phase0MultimodalTransportImages: '이미지 + PDF 텍스트 (기존)',
-	                phase0MultimodalTransportPdf: 'PDF + PDF 텍스트 (실험)',
-	                phase0MultimodalTransportHelp: '기본값은 기존 이미지+텍스트 방식입니다. “PDF + 텍스트”는 로컬 렌더링 없이 PDF를 모델에 첨부합니다.',
+		                phase0ImageCropsLabel: '그림/도표 크롭 (옵션)',
+		                phase0ImageCropsTextHtml: '그림/도표가 있는 문제: 이미지 크롭을 <code>question_text</code> 앞에 <code>![img](data:...)</code>로 삽입',
+		                phase0ImageCropsHelp: '기본값: 사용 안 함. 활성화 시 비용/용량이 증가할 수 있습니다.',
+		                phase0ImageCropsIncludeUnknownLabel: 'unknown 포함',
+		                phase0ImageCropsMaxPagesLabel: '최대 페이지',
+		                phase0ImageCropsMaxTokensLabel: '최대 토큰(대략)',
+		                phase0ImageCropsBatchHelp: '0이면 무제한. 이 제한은 Smart Router 유닛에만 적용됩니다.',
+		                phase0MultimodalTransportLabel: '0단계: 멀티모달 입력 전송',
+		                phase0MultimodalTransportImages: '이미지 + PDF 텍스트 (기존)',
+		                phase0MultimodalTransportPdf: 'PDF + PDF 텍스트 (실험)',
+		                phase0MultimodalTransportHelp: '기본값은 기존 이미지+텍스트 방식입니다. “PDF + 텍스트”는 로컬 렌더링 없이 PDF를 모델에 첨부합니다.',
 	                phase0SmartRouterLabel: '0단계: Smart QID Router (실험)',
 	                phase0SmartRouterTextHtml: 'PDF 첨부 → <code>Page→QID</code> 라우팅 → QID 묶음 단위 추출(atomic block은 절대 자르지 않음)',
 	                phase0SmartRouterHelp: 'Smart router 배치 제한은 아래 설정으로 제어합니다. (기본: 분할 페이지 값 사용)',
@@ -17214,11 +17514,12 @@ ${explanationWithGlobal}
 		                'phase0-pdf-input-mode-select', 'phase0-multimodal-transport-select',
 		                'phase0-smart-router-input',
 		                'phase0-smart-router-batch-limit-enabled-input',
-		                'phase0-smart-router-batch-mode-select', 'phase0-smart-router-max-pages-input', 'phase0-smart-router-max-tokens-input', 'phase0-smart-router-unassigned-select',
-		                'tesseract-lang-input', 'phase0-image-crops-input',
-		                'phase0-answer-fill-input',
-		                'phase0-answer-fill-fill-answers-input', 'phase0-answer-fill-fill-explanations-input',
-		                'phase0-answer-fill-overwrite-answers-input', 'phase0-answer-fill-overwrite-explanations-input',
+			                'phase0-smart-router-batch-mode-select', 'phase0-smart-router-max-pages-input', 'phase0-smart-router-max-tokens-input', 'phase0-smart-router-unassigned-select',
+			                'tesseract-lang-input', 'phase0-image-crops-input',
+			                'phase0-image-crops-include-unknown-input', 'phase0-image-crops-max-pages-input', 'phase0-image-crops-max-tokens-input',
+			                'phase0-answer-fill-input',
+			                'phase0-answer-fill-fill-answers-input', 'phase0-answer-fill-fill-explanations-input',
+			                'phase0-answer-fill-overwrite-answers-input', 'phase0-answer-fill-overwrite-explanations-input',
 		                'phase0-answer-fill-include-type-guide-input', 'phase0-answer-fill-type-guide-max-chars-input',
 		                'answer-fill-chunk-tokens-input', 'answer-fill-duckduckgo-input',
 		                'max-data-envelope-tries-input', 'structured-output-style-select',
@@ -17247,12 +17548,24 @@ ${explanationWithGlobal}
                         if (el) el.disabled = !enabled;
                     });
             };
-            syncSmartRouterBatchUi();
-            getEl('phase0-smart-router-batch-limit-enabled-input')?.addEventListener('change', syncSmartRouterBatchUi);
+	            syncSmartRouterBatchUi();
+	            getEl('phase0-smart-router-batch-limit-enabled-input')?.addEventListener('change', syncSmartRouterBatchUi);
 
-            // Log UI performance controls
-            const applyLogLimits = () => {
-                const maxLines = getEl('log-ui-max-lines-input')?.value;
+	            // Phase0 image-crops sub-settings enable/disable UI
+	            const syncImageCropsUi = () => {
+	                const enabled = getEl('phase0-image-crops-input')?.checked ?? false;
+	                ['phase0-image-crops-include-unknown-input', 'phase0-image-crops-max-pages-input', 'phase0-image-crops-max-tokens-input']
+	                    .forEach(id => {
+	                        const el = getEl(id);
+	                        if (el) el.disabled = !enabled;
+	                    });
+	            };
+	            syncImageCropsUi();
+	            getEl('phase0-image-crops-input')?.addEventListener('change', syncImageCropsUi);
+
+	            // Log UI performance controls
+	            const applyLogLimits = () => {
+	                const maxLines = getEl('log-ui-max-lines-input')?.value;
                 const maxChars = getEl('log-ui-max-chars-input')?.value;
                 logger.setUiLimits({ maxLines, maxChars });
             };
