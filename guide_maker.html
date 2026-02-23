@@ -6444,7 +6444,7 @@ function __extractActualTokens(data) {
         // 2. PARSERS / HELPERS FOR STRUCTURED OUTPUT
         //======================================================================
 
-        function parsePerfectEnvelope(text) {
+        function parsePerfectEnvelope(text, { allowEmpty = false } = {}) {
             const wrapperMatch = text.match(/<\s*data\s*>([\s\S]*?)<\s*\/\s*data\s*>/i);
             if (!wrapperMatch) throw new Error('Missing <data> wrapper');
             const inner = wrapperMatch[1];
@@ -6467,7 +6467,10 @@ function __extractActualTokens(data) {
             while ((m = legacyRegex.exec(inner)) !== null) {
                 items.push({ id: Number(m[1]), value: (m[2] ?? '').toString().trim() });
             }
-            if (items.length === 0) throw new Error('No items parsed inside <data>.');
+            if (items.length === 0) {
+                if (allowEmpty) return [];
+                throw new Error('No items parsed inside <data>.');
+            }
             return items;
         }
 
@@ -7313,7 +7316,7 @@ function __extractActualTokens(data) {
          * 4) At least one <item> ... </item> block exists (legacy <id:n> supported).
          * Throws an Error with a precise reason if any check fails.
          */
-        function validateSingleDataEnvelope(text) {
+        function validateSingleDataEnvelope(text, { allowEmpty = false } = {}) {
             if (typeof text !== 'string' || !text.trim()) {
                 throw new Error('Empty or non-string response.');
             }
@@ -7353,7 +7356,7 @@ function __extractActualTokens(data) {
             // Require at least one <item> pair (preferred) or legacy <id:n> pair
             const hasItemBlock = openNames.includes('item') && closeNames.includes('item');
             const hasLegacyIdBlock = openNames.some(n => /^id:\d+$/.test(n)) && closeNames.some(n => /^id:\d+$/.test(n));
-            if (!hasItemBlock && !hasLegacyIdBlock) {
+            if (!hasItemBlock && !hasLegacyIdBlock && !allowEmpty) {
                 throw new Error('No <item> ... </item> blocks (or legacy <id:n>) found inside <data>.');
             }
 
@@ -7374,7 +7377,7 @@ function __extractActualTokens(data) {
         // --- LENIENT DATA-ENVELOPE VALIDATION (Standard-Problem stage only) ---
         // ideological reason: we WANT the model to write extra rationale outside <data>
         // to improve reasoning quality, but we still strictly validate the single <data> payload.
-        function validateSingleDataEnvelope_lenient(text) {
+        function validateSingleDataEnvelope_lenient(text, { allowEmpty = false } = {}) {
             if (typeof text !== 'string' || !text.trim()) {
                 throw new Error('Empty or non-string response.');
             }
@@ -7398,7 +7401,7 @@ function __extractActualTokens(data) {
 
             const hasItemBlock = openNames.includes('item') && closeNames.includes('item');
             const hasLegacyIdBlock = openNames.some(n => /^id:\d+$/.test(n)) && closeNames.some(n => /^id:\d+$/.test(n));
-            if (!hasItemBlock && !hasLegacyIdBlock) throw new Error('No <item> ... </item> blocks (or legacy <id:n>) found inside <data>.');
+            if (!hasItemBlock && !hasLegacyIdBlock && !allowEmpty) throw new Error('No <item> ... </item> blocks (or legacy <id:n>) found inside <data>.');
 
             const count = arr => arr.reduce((m, k) => (m[k] = (m[k] || 0) + 1, m), {});
             const opens = count(openNames);
@@ -7522,7 +7525,7 @@ function __extractActualTokens(data) {
             };
         }
 
-        async function requestAndParseDataEnvelopeLenient(apiPayload, context, { phase = null } = {}) {
+        async function requestAndParseDataEnvelopeLenient(apiPayload, context, { phase = null, allowEmpty = false } = {}) {
             let tryNo = 0;
             const maxTries = (() => {
                 try { return __clampInt(getPipelineConfig()?.format?.maxDataEnvelopeTries ?? 0, { min: 0, max: 99, fallback: 0 }); } catch { return 0; }
@@ -7536,8 +7539,8 @@ function __extractActualTokens(data) {
                 const payloadTry = __withStructuredRationaleMode(apiPayload, { kind: 'data', phase, context });
                 const raw = await resilientLlmRequest(payloadTry, `${context}-XMLTry${tryNo}`);
                 try {
-                    validateSingleDataEnvelope_lenient(raw); // tolerate any text outside <data>
-                    return parsePerfectEnvelope(raw);        // still parse ONLY inside <data>
+                    validateSingleDataEnvelope_lenient(raw, { allowEmpty }); // tolerate any text outside <data>
+                    return parsePerfectEnvelope(raw, { allowEmpty });        // still parse ONLY inside <data>
                 } catch (e) {
                     try {
                         __formatErrors.add({
@@ -7556,7 +7559,7 @@ function __extractActualTokens(data) {
                     const payloadRepair = __withStructuredRationaleMode(repairPayload, { kind: 'data', phase, context });
                     const repaired = await resilientLlmRequest(payloadRepair, `${context}-XMLRepair${tryNo}`);
                     try {
-                        validateSingleDataEnvelope_lenient(repaired);
+                        validateSingleDataEnvelope_lenient(repaired, { allowEmpty });
                         try {
                             __formatErrors.add({
                                 kind: 'data_envelope',
@@ -7569,7 +7572,7 @@ function __extractActualTokens(data) {
                                 meta: { mode: 'lenient', ok: true }
                             });
                         } catch { }
-                        return parsePerfectEnvelope(repaired);
+                        return parsePerfectEnvelope(repaired, { allowEmpty });
                     } catch (e2) {
                         try {
                             __formatErrors.add({
@@ -7594,7 +7597,7 @@ function __extractActualTokens(data) {
          * <data>...</data> envelope is returned, then parses it with parsePerfectEnvelope.
          * Never sends corrective feedback to the model; purely blind retry.
          */
-        async function requestAndParseDataEnvelope(apiPayload, context, { phase = null } = {}) {
+        async function requestAndParseDataEnvelope(apiPayload, context, { phase = null, allowEmpty = false } = {}) {
             let tryNo = 0;
             const maxTries = (() => {
                 try { return __clampInt(getPipelineConfig()?.format?.maxDataEnvelopeTries ?? 0, { min: 0, max: 99, fallback: 0 }); } catch { return 0; }
@@ -7610,9 +7613,9 @@ function __extractActualTokens(data) {
 
                 // Try validation first
                 try {
-                    if (__isStructuredRationaleModeOn({ phase, context })) validateSingleDataEnvelope_lenient(raw);
-                    else validateSingleDataEnvelope(raw);
-                    return parsePerfectEnvelope(raw);
+                    if (__isStructuredRationaleModeOn({ phase, context })) validateSingleDataEnvelope_lenient(raw, { allowEmpty });
+                    else validateSingleDataEnvelope(raw, { allowEmpty });
+                    return parsePerfectEnvelope(raw, { allowEmpty });
                 } catch (e) {
                     try {
                         __formatErrors.add({
@@ -7630,9 +7633,9 @@ function __extractActualTokens(data) {
                     const recovery = recoverTruncatedDataEnvelope(raw);
                     if (recovery.recovered && recovery.itemsRecovered > 0) {
                         try {
-                            validateSingleDataEnvelope_lenient(recovery.text);
+                            validateSingleDataEnvelope_lenient(recovery.text, { allowEmpty });
                             logger.info(context, `Recovered ${recovery.itemsRecovered} items from truncated output (try ${tryNo})`);
-                            return parsePerfectEnvelope(recovery.text);
+                            return parsePerfectEnvelope(recovery.text, { allowEmpty });
                         } catch (recoveryErr) {
                             logger.warn(context, `Recovery validation failed: ${recoveryErr.message}. Falling back to repair...`);
                         }
@@ -7644,7 +7647,7 @@ function __extractActualTokens(data) {
                     const payloadRepair = __withStructuredRationaleMode(repairPayload, { kind: 'data', phase, context });
                     const repaired = await resilientLlmRequest(payloadRepair, `${context}-XMLRepair${tryNo}`);
                     try {
-                        validateSingleDataEnvelope_lenient(repaired);
+                        validateSingleDataEnvelope_lenient(repaired, { allowEmpty });
                         try {
                             __formatErrors.add({
                                 kind: 'data_envelope',
@@ -7657,7 +7660,7 @@ function __extractActualTokens(data) {
                                 meta: { mode: 'repair', ok: true }
                             });
                         } catch { }
-                        return parsePerfectEnvelope(repaired);
+                        return parsePerfectEnvelope(repaired, { allowEmpty });
                     } catch (e2) {
                         try {
                             __formatErrors.add({
@@ -9756,7 +9759,7 @@ Rules:
                 const content = [{ type: 'text', text: `QUESTIONS:\n\n${brief}\n\nReturn crops only for questions that have a relevant visual.` }];
                 images.forEach(img => content.push({ type: 'image_url', image_url: { url: img } }));
                 const payload = { model: getApiConfig().model, messages: [{ role: 'system', content: sys }, { role: 'user', content }] };
-                const itemsOut = await requestAndParseDataEnvelope(payload, ctxLabel, { phase: 'phase0' });
+                const itemsOut = await requestAndParseDataEnvelope(payload, ctxLabel, { phase: 'phase0', allowEmpty: true });
 
                 const cropsByQid = new Map();
                 itemsOut.forEach(it => {
