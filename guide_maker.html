@@ -947,7 +947,31 @@
 		                                <span data-i18n-html="phase0SmartRouterTextHtml">PDF를 모델에 첨부해 <code>Page→QID</code>를 라우팅한 뒤, QID 묶음 단위로 추출(atomic block은 절대 자르지 않음)</span>
 		                            </label>
 		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="phase0SmartRouterHelp">
-		                                분할 페이지 값은 “요청당 최대 페이지”로 사용됩니다. 0이면 한 파일을 1회 요청으로 묶습니다(커질 수 있음).
+		                                Smart router 배치 제한은 아래 설정으로 제어합니다. (기본: 분할 페이지 값 사용)
+		                            </div>
+		                        </div>
+		                        <div class="input-group-tight" style="margin-top: 0.25rem; padding-left: 14px;" id="phase0-smart-router-settings-wrap">
+		                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+		                                <label class="muted" style="font-size:12px;" data-i18n="phase0SmartRouterBatchModeLabel">배치 제한</label>
+		                                <select id="phase0-smart-router-batch-mode-select" class="ui-input" style="max-width:220px;">
+		                                    <option value="inherit" data-i18n="phase0SmartRouterBatchModeInherit">기본(분할 페이지 사용)</option>
+		                                    <option value="pages" data-i18n="phase0SmartRouterBatchModePages">페이지 수</option>
+		                                    <option value="tokens" data-i18n="phase0SmartRouterBatchModeTokens">토큰(텍스트 기준)</option>
+		                                </select>
+		                                <label class="muted" style="font-size:12px;" data-i18n="phase0SmartRouterMaxPagesLabel">최대 페이지</label>
+		                                <input type="number" id="phase0-smart-router-max-pages-input" class="ui-input" min="0" value="0" style="max-width:140px;">
+		                                <label class="muted" style="font-size:12px;" data-i18n="phase0SmartRouterMaxTokensLabel">최대 토큰(대략)</label>
+		                                <input type="number" id="phase0-smart-router-max-tokens-input" class="ui-input" min="0" max="400000" value="0" style="max-width:140px;">
+		                            </div>
+		                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px;">
+		                                <label class="muted" style="font-size:12px;" data-i18n="phase0SmartRouterUnassignedLabel">미할당 페이지</label>
+		                                <select id="phase0-smart-router-unassigned-select" class="ui-input" style="max-width:220px;">
+		                                    <option value="extract" data-i18n="phase0SmartRouterUnassignedExtract">추출(기존)</option>
+		                                    <option value="drop" data-i18n="phase0SmartRouterUnassignedDrop">버리기</option>
+		                                </select>
+		                            </div>
+		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="phase0SmartRouterBatchHelp">
+		                                0은 제한없음. 토큰 제한은 “rawText/ocrText 텍스트” 기준으로 대략 계산합니다. (이미지/PDF 자체 토큰은 포함 안 됨)
 		                            </div>
 		                        </div>
 		                        <div class="input-group-tight" style="margin-top: 0.75rem;">
@@ -1005,7 +1029,7 @@
 		                                    <span data-i18n="ppIncludeTypeGuideLabel">Include type guide (fmm_source)</span>
 		                                </label>
 		                                <label class="muted" style="font-size:12px;" data-i18n="ppTypeGuideMaxCharsLabel">Type guide max chars</label>
-		                                <input type="number" id="phase0-answer-fill-type-guide-max-chars-input" class="ui-input" min="200" max="200000" value="12000" style="max-width:140px;">
+		                                <input type="number" id="phase0-answer-fill-type-guide-max-chars-input" class="ui-input" min="0" value="12000" style="max-width:140px;">
 		                            </div>
 		                        </div>
 		                        <div class="input-group-tight">
@@ -1773,7 +1797,13 @@
 		            phase0: {
 		                pdfInputMode: 'multimodal',
 		                multimodalTransport: 'images_raw_text', // images_raw_text | pdf_raw_text
-		                smartRouter: { enabled: false },
+		                smartRouter: {
+		                    enabled: false,
+		                    batchLimitMode: 'inherit',       // inherit | pages | tokens
+		                    maxPagesPerRequest: 0,          // 0 = unlimited
+		                    maxTokensPerRequest: 0,         // 0 = unlimited (text-based estimate)
+		                    unassignedMode: 'extract',      // extract | drop
+		                },
 		                tesseractLang: 'kor+eng',
 		                experimentalImageCrops: false,
 		                // NOTE: This is an "export postprocess"-equivalent fill (same engine as Save Postprocessing)
@@ -1885,7 +1915,29 @@
 		                const enabled = (typeof sr === 'boolean')
 		                    ? sr
 		                    : !!(sr?.enabled ?? cfg?.phase0?.smartRouterEnabled ?? false);
-		                base.phase0.smartRouter = { enabled: !!enabled };
+		                const modeRaw = (sr && typeof sr === 'object') ? String(sr?.batchLimitMode || sr?.mode || '').trim().toLowerCase() : '';
+		                const batchLimitMode = (modeRaw === 'pages' || modeRaw === 'tokens' || modeRaw === 'inherit')
+		                    ? modeRaw
+		                    : 'inherit';
+		                const maxPagesPerRequest = __clampInt(
+		                    (sr && typeof sr === 'object') ? (sr?.maxPagesPerRequest ?? sr?.maxPages) : 0,
+		                    { min: 0, max: 9999, fallback: 0 }
+		                );
+		                const maxTokensPerRequest = __clampInt(
+		                    (sr && typeof sr === 'object') ? (sr?.maxTokensPerRequest ?? sr?.maxTokens) : 0,
+		                    { min: 0, max: 400000, fallback: 0 }
+		                );
+		                const unassignedRaw = (sr && typeof sr === 'object') ? String(sr?.unassignedMode || sr?.unassigned || '').trim().toLowerCase() : '';
+		                const unassignedMode = (unassignedRaw === 'drop' || unassignedRaw === 'extract')
+		                    ? unassignedRaw
+		                    : 'extract';
+		                base.phase0.smartRouter = {
+		                    enabled: !!enabled,
+		                    batchLimitMode,
+		                    maxPagesPerRequest,
+		                    maxTokensPerRequest,
+		                    unassignedMode,
+		                };
 		            }
 		            {
 		                const af0 = (cfg?.phase0?.answerFill && typeof cfg.phase0.answerFill === 'object') ? cfg.phase0.answerFill : {};
@@ -1896,7 +1948,7 @@
 		                    fillChunkTokens: Number.isFinite(af0?.fillChunkTokens)
 		                        ? af0.fillChunkTokens
 		                        : (Number.isFinite(af0?.chunkTokens) ? af0.chunkTokens : inferredTokens),
-		                    typeGuideMaxChars: __clampInt(af0?.typeGuideMaxChars ?? base?.phase0?.answerFill?.typeGuideMaxChars ?? 12000, { min: 200, max: 200000, fallback: 12000 }),
+		                    typeGuideMaxChars: __clampInt(af0?.typeGuideMaxChars ?? base?.phase0?.answerFill?.typeGuideMaxChars ?? 12000, { min: 0, max: 999999, fallback: 12000 }),
 		                    includeTypeGuide: (typeof af0?.includeTypeGuide === 'boolean') ? af0.includeTypeGuide : true,
 		                    fillAnswers: (typeof af0?.fillAnswers === 'boolean') ? af0.fillAnswers : true,
 		                    fillExplanations: (typeof af0?.fillExplanations === 'boolean') ? af0.fillExplanations : true,
@@ -2016,7 +2068,16 @@
 	            cfg.phase0 = {
 	                pdfInputMode: __getStrFromUi('phase0-pdf-input-mode-select', 'multimodal') || 'multimodal',
 	                multimodalTransport: __getStrFromUi('phase0-multimodal-transport-select', 'images_raw_text') || 'images_raw_text',
-	                smartRouter: { enabled: __getBoolFromUi('phase0-smart-router-input', false) },
+	                smartRouter: (() => {
+	                    const enabled = __getBoolFromUi('phase0-smart-router-input', false);
+	                    const modeRaw = String(__getStrFromUi('phase0-smart-router-batch-mode-select', 'inherit') || 'inherit').trim().toLowerCase();
+	                    const batchLimitMode = (modeRaw === 'inherit' || modeRaw === 'pages' || modeRaw === 'tokens') ? modeRaw : 'inherit';
+	                    const maxPagesPerRequest = __clampInt(__getStrFromUi('phase0-smart-router-max-pages-input', 0), { min: 0, max: 9999, fallback: 0 });
+	                    const maxTokensPerRequest = __clampInt(__getStrFromUi('phase0-smart-router-max-tokens-input', 0), { min: 0, max: 400000, fallback: 0 });
+	                    const unassignedRaw = String(__getStrFromUi('phase0-smart-router-unassigned-select', 'extract') || 'extract').trim().toLowerCase();
+	                    const unassignedMode = (unassignedRaw === 'extract' || unassignedRaw === 'drop') ? unassignedRaw : 'extract';
+	                    return { enabled, batchLimitMode, maxPagesPerRequest, maxTokensPerRequest, unassignedMode };
+	                })(),
 	                tesseractLang: (__getStrFromUi('tesseract-lang-input', 'kor+eng') || 'kor+eng').trim() || 'kor+eng',
 	                experimentalImageCrops: __getBoolFromUi('phase0-image-crops-input', false),
 	                answerFill: {
@@ -2026,7 +2087,7 @@
 	                        max: 400000,
 	                        fallback: chunkTokens1b,
 	                    }),
-	                    typeGuideMaxChars: __clampInt(__getStrFromUi('phase0-answer-fill-type-guide-max-chars-input', 12000), { min: 200, max: 200000, fallback: 12000 }),
+	                    typeGuideMaxChars: __clampInt(__getStrFromUi('phase0-answer-fill-type-guide-max-chars-input', 12000), { min: 0, max: 999999, fallback: 12000 }),
 	                    includeTypeGuide: __getBoolFromUi('phase0-answer-fill-include-type-guide-input', true),
 	                    fillAnswers: __getBoolFromUi('phase0-answer-fill-fill-answers-input', true),
 	                    fillExplanations: __getBoolFromUi('phase0-answer-fill-fill-explanations-input', true),
@@ -2133,6 +2194,10 @@
 	                setVal('phase0-pdf-input-mode-select', c.phase0?.pdfInputMode ?? 'multimodal');
 	                setVal('phase0-multimodal-transport-select', c.phase0?.multimodalTransport ?? 'images_raw_text');
 	                setChk('phase0-smart-router-input', c.phase0?.smartRouter?.enabled ?? false);
+	                setVal('phase0-smart-router-batch-mode-select', c.phase0?.smartRouter?.batchLimitMode ?? 'inherit');
+	                setVal('phase0-smart-router-max-pages-input', c.phase0?.smartRouter?.maxPagesPerRequest ?? 0);
+	                setVal('phase0-smart-router-max-tokens-input', c.phase0?.smartRouter?.maxTokensPerRequest ?? 0);
+	                setVal('phase0-smart-router-unassigned-select', c.phase0?.smartRouter?.unassignedMode ?? 'extract');
 	                setVal('tesseract-lang-input', c.phase0?.tesseractLang ?? 'kor+eng');
 	                setChk('phase0-image-crops-input', c.phase0?.experimentalImageCrops ?? false);
 	                setChk('phase0-answer-fill-input', c.phase0?.answerFill?.enabled ?? false);
@@ -13343,6 +13408,92 @@ ${explanationWithGlobal}
             return batches;
         }
 
+        function __packQidBlocksToBatchesByTokens(qidToPages, pageTokensByPageNum, maxTokensPerBatch) {
+            const maxTokens = Number.isFinite(maxTokensPerBatch) && maxTokensPerBatch > 0 ? maxTokensPerBatch : Infinity;
+            const pageTok = (pageTokensByPageNum && typeof pageTokensByPageNum.get === 'function') ? pageTokensByPageNum : new Map();
+
+            const blocks = Array.from((qidToPages || new Map()).entries()).map(([qid, pagesSet]) => {
+                const pages = Array.from(pagesSet || []).filter(p => Number.isFinite(p)).sort((a, b) => a - b);
+                return { qid: String(qid || '').trim(), pages, minPage: pages.length ? pages[0] : Infinity };
+            }).filter(b => b.qid && b.pages.length);
+
+            blocks.sort((a, b) => {
+                if (a.minPage !== b.minPage) return a.minPage - b.minPage;
+                return a.qid.localeCompare(b.qid);
+            });
+
+            const batches = [];
+            let cur = { qids: [], pagesSet: new Set(), qidToPages: {}, estTokens: 0 };
+
+            const flush = () => {
+                if (!cur.qids.length) return;
+                const pages = Array.from(cur.pagesSet).sort((a, b) => a - b);
+                batches.push({
+                    qids: cur.qids.slice(),
+                    pages,
+                    qidToPages: { ...cur.qidToPages },
+                    pageStart: pages.length ? pages[0] : null,
+                    pageEnd: pages.length ? pages[pages.length - 1] : null,
+                    estTokens: cur.estTokens,
+                });
+                cur = { qids: [], pagesSet: new Set(), qidToPages: {}, estTokens: 0 };
+            };
+
+            const pageToken = (p) => {
+                const t = pageTok.get(p);
+                return Number.isFinite(t) ? t : 0;
+            };
+
+            for (const b of blocks) {
+                let addTok = 0;
+                for (const p of b.pages) {
+                    if (!cur.pagesSet.has(p)) addTok += pageToken(p);
+                }
+                if (cur.qids.length > 0 && (cur.estTokens + addTok) > maxTokens) {
+                    flush();
+                }
+                // Atomic block: never split a single QID across batches.
+                cur.qids.push(b.qid);
+                cur.qidToPages[b.qid] = b.pages.slice();
+                for (const p of b.pages) {
+                    if (!cur.pagesSet.has(p)) {
+                        cur.pagesSet.add(p);
+                        cur.estTokens += pageToken(p);
+                    }
+                }
+            }
+            flush();
+            return batches;
+        }
+
+        function __packPagesToBatchesByTokens(pages, pageTokensByPageNum, maxTokensPerBatch) {
+            const maxTokens = Number.isFinite(maxTokensPerBatch) && maxTokensPerBatch > 0 ? maxTokensPerBatch : Infinity;
+            const pageTok = (pageTokensByPageNum && typeof pageTokensByPageNum.get === 'function') ? pageTokensByPageNum : new Map();
+            const pageToken = (p) => {
+                const t = pageTok.get(p);
+                return Number.isFinite(t) ? t : 0;
+            };
+
+            const sorted = Array.from(pages || []).filter(p => Number.isFinite(p)).sort((a, b) => a - b);
+            const batches = [];
+            let cur = [];
+            let curTok = 0;
+            const flush = () => {
+                if (!cur.length) return;
+                batches.push({ pages: cur.slice(), estTokens: curTok });
+                cur = [];
+                curTok = 0;
+            };
+            for (const p of sorted) {
+                const t = pageToken(p);
+                if (cur.length > 0 && (curTok + t) > maxTokens) flush();
+                cur.push(p);
+                curTok += t;
+            }
+            flush();
+            return batches;
+        }
+
         async function processUploadedFiles() {
             examPapers = [];
             logger.info("FileProcessing", "Starting file processing with OCR...");
@@ -13378,12 +13529,19 @@ ${explanationWithGlobal}
                 logger.info("FileProcessing", `PDF mode = text-only / PDF transport (no rendered images). This is cheaper locally but may fail if the model cannot read the PDF.`);
             }
             if (smartRouterEnabled) {
-                logger.info("FileProcessing", `Smart router: ON (Page→QID). splitPages is treated as max pages per extraction request; atomic QID blocks are never split.`);
+                logger.info("FileProcessing", `Smart router: ON (Page→QID). Batch limit is controlled by config (inherit/pages/tokens); atomic QID blocks are never split.`);
             }
 
             const processingPromises = uploadedFiles.map(async (fileWrapper) => {
                 const { file } = fileWrapper;
                 const splitPages = getEffectiveSplitPages(fileWrapper);
+                const srCfg = (cfg?.phase0?.smartRouter && typeof cfg.phase0.smartRouter === 'object') ? cfg.phase0.smartRouter : {};
+                const srModeRaw = String(srCfg?.batchLimitMode || 'inherit').trim().toLowerCase();
+                const srBatchLimitMode = (srModeRaw === 'inherit' || srModeRaw === 'pages' || srModeRaw === 'tokens') ? srModeRaw : 'inherit';
+                const srMaxPages = __clampInt(srCfg?.maxPagesPerRequest ?? 0, { min: 0, max: 9999, fallback: 0 });
+                const srMaxTokens = __clampInt(srCfg?.maxTokensPerRequest ?? 0, { min: 0, max: 400000, fallback: 0 });
+                const srUnassignedRaw = String(srCfg?.unassignedMode || 'extract').trim().toLowerCase();
+                const srUnassignedMode = (srUnassignedRaw === 'drop' || srUnassignedRaw === 'extract') ? srUnassignedRaw : 'extract';
 
                 if (file.type === 'text/plain') {
                     return new Promise((resolve, reject) => {
@@ -13479,7 +13637,30 @@ ${explanationWithGlobal}
                         }
 
                         if (routed && routed.qidToPages) {
-                            const batches = __packQidBlocksToBatches(routed.qidToPages, splitPages);
+                            const effectiveMaxPages = (srBatchLimitMode === 'pages') ? srMaxPages : splitPages; // inherit -> splitPages
+                            const effectiveMaxTokens = srMaxTokens;
+                            const pageTokensByPageNum = (srBatchLimitMode === 'tokens')
+                                ? (() => {
+                                    const m = new Map();
+                                    for (const pd of (pageData || [])) {
+                                        const pNum = Number(pd?.pageNum);
+                                        if (!Number.isFinite(pNum) || pNum < 1) continue;
+                                        const text = needsTesseract ? String(pd?.ocrText || '').trim() : String(pd?.rawText || '').trim();
+                                        const block = `[Page ${pNum}]\n${text}`;
+                                        m.set(pNum, __countTokens(block));
+                                    }
+                                    return m;
+                                })()
+                                : null;
+
+                            logger.info(
+                                "FileProcessing",
+                                `Smart router batching: file=${file.name} mode=${srBatchLimitMode} maxPages=${effectiveMaxPages || 0} maxTokens=${effectiveMaxTokens || 0} unassigned=${srUnassignedMode}`
+                            );
+
+                            const batches = (srBatchLimitMode === 'tokens')
+                                ? __packQidBlocksToBatchesByTokens(routed.qidToPages, pageTokensByPageNum, effectiveMaxTokens)
+                                : __packQidBlocksToBatches(routed.qidToPages, effectiveMaxPages);
                             let smartPartIndex = 0;
                             for (const batch of (batches || [])) {
                                 if (processController.stop) throw new Error("Operation cancelled.");
@@ -13515,7 +13696,8 @@ ${explanationWithGlobal}
                                     smartRouter: true,
                                 });
 
-                                logger.success("FileProcessing", `Created smart exam unit: ${partName} (qids=${targetLocalQids.length}, pages=${pages.length})`);
+                                const tokHint = (srBatchLimitMode === 'tokens' && Number.isFinite(batch?.estTokens)) ? `, tokens≈${batch.estTokens}` : '';
+                                logger.success("FileProcessing", `Created smart exam unit: ${partName} (qids=${targetLocalQids.length}, pages=${pages.length}${tokHint})`);
                             }
 
                             const unassigned = (Array.isArray(routed?.unassignedPages) ? routed.unassignedPages : [])
@@ -13527,40 +13709,82 @@ ${explanationWithGlobal}
                                 })
                                 .sort((a, b) => a - b);
                             if (unassigned.length) {
-                                const maxPages = splitPages > 0 ? splitPages : unassigned.length;
-                                let idx = 0;
-                                for (let i = 0; i < unassigned.length; i += maxPages) {
-                                    if (processController.stop) throw new Error("Operation cancelled.");
-                                    idx++;
-                                    const pages = unassigned.slice(i, i + maxPages);
-                                    const startPage = pages[0];
-                                    const endPage = pages[pages.length - 1];
-                                    const partName = `${file.name} (Smart Unassigned ${idx}, p${startPage}-${endPage})`;
+                                if (srUnassignedMode === 'drop') {
+                                    logger.info("FileProcessing", `Smart router: dropping unassigned pages for ${file.name} (n=${unassigned.length})`);
+                                } else if (srBatchLimitMode === 'tokens') {
+                                    const chunks = __packPagesToBatchesByTokens(unassigned, pageTokensByPageNum, effectiveMaxTokens);
+                                    let idx = 0;
+                                    for (const ch of (chunks || [])) {
+                                        if (processController.stop) throw new Error("Operation cancelled.");
+                                        idx++;
+                                        const pages = Array.isArray(ch?.pages) ? ch.pages : [];
+                                        if (!pages.length) continue;
+                                        const startPage = pages[0];
+                                        const endPage = pages[pages.length - 1];
+                                        const partName = `${file.name} (Smart Unassigned ${idx}, p${startPage}-${endPage})`;
 
-                                    const relevantPages = pages.map(pn => byPage.get(pn)).filter(Boolean);
-                                    const images = needsImages ? relevantPages.map(p => p.imageDataUrl).filter(Boolean) : [];
-                                    const rawTexts = relevantPages.map(p => `[Page ${p.pageNum}]\n${p.rawText}`).join('\n\n');
-                                    const ocrTexts = needsTesseract
-                                        ? relevantPages.map(p => `[Page ${p.pageNum}]\n${p.ocrText || ''}`).join('\n\n')
-                                        : null;
+                                        const relevantPages = pages.map(pn => byPage.get(pn)).filter(Boolean);
+                                        const images = needsImages ? relevantPages.map(p => p.imageDataUrl).filter(Boolean) : [];
+                                        const rawTexts = relevantPages.map(p => `[Page ${p.pageNum}]\n${p.rawText}`).join('\n\n');
+                                        const ocrTexts = needsTesseract
+                                            ? relevantPages.map(p => `[Page ${p.pageNum}]\n${p.ocrText || ''}`).join('\n\n')
+                                            : null;
 
-                                    examPapers.push({
-                                        fileName: partName,
-                                        sourceFileName: file.name,
-                                        type: 'pdf',
-                                        images,
-                                        rawText: rawTexts,
-                                        ocrText: ocrTexts,
-                                        partIndex: smartPartIndex + idx,
-                                        pageStart: startPage,
-                                        pageEnd: endPage,
-                                        pageNums: pages.slice(),
-                                        targetLocalQids: null,
-                                        targetQidPages: null,
-                                        smartRouter: true,
-                                        smartRouterUnassigned: true,
-                                    });
-                                    logger.success("FileProcessing", `Created smart unassigned unit: ${partName} (pages=${pages.length})`);
+                                        examPapers.push({
+                                            fileName: partName,
+                                            sourceFileName: file.name,
+                                            type: 'pdf',
+                                            images,
+                                            rawText: rawTexts,
+                                            ocrText: ocrTexts,
+                                            partIndex: smartPartIndex + idx,
+                                            pageStart: startPage,
+                                            pageEnd: endPage,
+                                            pageNums: pages.slice(),
+                                            targetLocalQids: null,
+                                            targetQidPages: null,
+                                            smartRouter: true,
+                                            smartRouterUnassigned: true,
+                                        });
+                                        const tokHint = Number.isFinite(ch?.estTokens) ? `, tokens≈${ch.estTokens}` : '';
+                                        logger.success("FileProcessing", `Created smart unassigned unit: ${partName} (pages=${pages.length}${tokHint})`);
+                                    }
+                                } else {
+                                    const maxPages = effectiveMaxPages > 0 ? effectiveMaxPages : unassigned.length;
+                                    let idx = 0;
+                                    for (let i = 0; i < unassigned.length; i += maxPages) {
+                                        if (processController.stop) throw new Error("Operation cancelled.");
+                                        idx++;
+                                        const pages = unassigned.slice(i, i + maxPages);
+                                        const startPage = pages[0];
+                                        const endPage = pages[pages.length - 1];
+                                        const partName = `${file.name} (Smart Unassigned ${idx}, p${startPage}-${endPage})`;
+
+                                        const relevantPages = pages.map(pn => byPage.get(pn)).filter(Boolean);
+                                        const images = needsImages ? relevantPages.map(p => p.imageDataUrl).filter(Boolean) : [];
+                                        const rawTexts = relevantPages.map(p => `[Page ${p.pageNum}]\n${p.rawText}`).join('\n\n');
+                                        const ocrTexts = needsTesseract
+                                            ? relevantPages.map(p => `[Page ${p.pageNum}]\n${p.ocrText || ''}`).join('\n\n')
+                                            : null;
+
+                                        examPapers.push({
+                                            fileName: partName,
+                                            sourceFileName: file.name,
+                                            type: 'pdf',
+                                            images,
+                                            rawText: rawTexts,
+                                            ocrText: ocrTexts,
+                                            partIndex: smartPartIndex + idx,
+                                            pageStart: startPage,
+                                            pageEnd: endPage,
+                                            pageNums: pages.slice(),
+                                            targetLocalQids: null,
+                                            targetQidPages: null,
+                                            smartRouter: true,
+                                            smartRouterUnassigned: true,
+                                        });
+                                        logger.success("FileProcessing", `Created smart unassigned unit: ${partName} (pages=${pages.length})`);
+                                    }
                                 }
                             }
 
@@ -14209,8 +14433,8 @@ ${explanationWithGlobal}
 	                      ${escapeHtmlForInnerHTML(__tGui('ppIncludeTypeGuideLabel'))}
 	                    </label>
 	                    <label class="muted" style="font-size:12px;">${escapeHtmlForInnerHTML(__tGui('ppTypeGuideMaxCharsLabel'))}
-	                      <input class="ui-input" id="pp-type-guide-max-chars" type="number" min="200" max="200000"
-	                        value="${escapeHtmlForInnerHTML(String(s.typeGuideMaxChars || 12000))}"
+	                      <input class="ui-input" id="pp-type-guide-max-chars" type="number" min="0"
+	                        value="${escapeHtmlForInnerHTML(String((s.typeGuideMaxChars ?? 12000)))}"
 	                        style="width:140px; margin-left:6px;">
 	                    </label>
 	                    <label class="muted" style="font-size:12px;">${escapeHtmlForInnerHTML(__tGui('ppChunkTokensLabel'))}
@@ -14313,7 +14537,7 @@ ${explanationWithGlobal}
 	            const s = __postprocessSave?.state?.settings;
 	            if (!s) return;
 	            const clampTokens = (v) => __clampInt(v, { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS });
-	            const clampChars = (v) => __clampInt(v, { min: 200, max: 200000, fallback: 12000 });
+            const clampChars = (v) => __clampInt(v, { min: 0, max: 999999, fallback: 12000 });
 	
 	            if (id === 'pp-subgroup-chunk-tokens') s.subgroupChunkTokens = clampTokens(e.target.value);
 	            else if (id === 'pp-fill-chunk-tokens') s.fillChunkTokens = clampTokens(e.target.value);
@@ -14623,7 +14847,7 @@ ${explanationWithGlobal}
             const overwriteAnswers = !!s.overwriteAnswers;
             const overwriteExplanations = !!s.overwriteExplanations;
             const includeTypeGuide = (typeof s.includeTypeGuide === 'boolean') ? s.includeTypeGuide : true;
-            const typeGuideMaxChars = __clampInt(s.typeGuideMaxChars, { min: 200, max: 200000, fallback: 12000 });
+            const typeGuideMaxChars = __clampInt(s.typeGuideMaxChars, { min: 0, max: 999999, fallback: 12000 });
             const maxT = __clampInt(s.fillChunkTokens, { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS });
             const useDdg = !!s.useDuckDuckGo;
 
@@ -14964,7 +15188,7 @@ ${explanationWithGlobal}
 	                overwriteAnswers: !!af.overwriteAnswers,
 	                overwriteExplanations: !!af.overwriteExplanations,
 	                includeTypeGuide: (typeof af.includeTypeGuide === 'boolean') ? af.includeTypeGuide : true,
-	                typeGuideMaxChars: __clampInt(af.typeGuideMaxChars, { min: 200, max: 200000, fallback: 12000 }),
+	                typeGuideMaxChars: __clampInt(af.typeGuideMaxChars, { min: 0, max: 999999, fallback: 12000 }),
 	                fillChunkTokens: __clampInt(af.fillChunkTokens ?? af.chunkTokens, { min: 1000, max: 400000, fallback: DEFAULT_CHUNK_TOKENS }),
 	                useDuckDuckGo: !!af.useDuckDuckGo,
 	            };
@@ -15643,7 +15867,7 @@ ${explanationWithGlobal}
 	                ppOverwriteAnswersLabel: 'Overwrite answers',
 	                ppOverwriteExplanationsLabel: 'Overwrite explanations',
 	                ppIncludeTypeGuideLabel: 'Include type guide (fmm_source)',
-	                ppTypeGuideMaxCharsLabel: 'Type guide max chars',
+	                ppTypeGuideMaxCharsLabel: 'Type guide max chars (0 = unlimited)',
 	                ppUseDuckDuckGoLabel: 'Use DuckDuckGo Instant Answer',
 	                ppRunFillButton: 'Run fill',
 	                ppRunBothButton: 'Run both',
@@ -15712,7 +15936,17 @@ ${explanationWithGlobal}
 	                phase0MultimodalTransportHelp: 'Default keeps the current image+rawText flow. “PDF + text” attaches the PDF to the model (no local rendering).',
 	                phase0SmartRouterLabel: 'Phase 0: Smart QID Router (experimental)',
 	                phase0SmartRouterTextHtml: 'Attach PDF → route <code>Page→QID</code> → extract by QID batches (never splits atomic QID blocks)',
-	                phase0SmartRouterHelp: 'Split pages is treated as “max pages per request”. If 0, it packs the entire file into 1 request (can be large).',
+	                phase0SmartRouterHelp: 'Batch limit is controlled below. (Default: inherit split-pages setting)',
+	                phase0SmartRouterBatchModeLabel: 'Batch limit',
+	                phase0SmartRouterBatchModeInherit: 'Default (inherit split pages)',
+	                phase0SmartRouterBatchModePages: 'Max pages',
+	                phase0SmartRouterBatchModeTokens: 'Max tokens (text-based)',
+	                phase0SmartRouterMaxPagesLabel: 'Max pages',
+	                phase0SmartRouterMaxTokensLabel: 'Max tokens (approx.)',
+	                phase0SmartRouterUnassignedLabel: 'Unassigned pages',
+	                phase0SmartRouterUnassignedExtract: 'Extract (default)',
+	                phase0SmartRouterUnassignedDrop: 'Drop',
+	                phase0SmartRouterBatchHelp: '0 means unlimited. Token limit is estimated from rawText/ocrText only (does not include image/PDF tokenization).',
 	                phase1SubgroupingLabel: 'Subgroups within types (experimental)',
 	                phase1SubgroupingTextHtml: 'Within each type: group only the problems that share an identical one-sentence solving rule using <code>subgroup_tag</code> (affects renderer similarity groups)',
 	                phase1SubgroupingHelp: 'Default: off. Enabling adds extra calls after Phase 3 (final export).',
@@ -16018,7 +16252,7 @@ ${explanationWithGlobal}
 	                ppOverwriteAnswersLabel: '정답 덮어쓰기',
 	                ppOverwriteExplanationsLabel: '해설 덮어쓰기',
 	                ppIncludeTypeGuideLabel: '유형 가이드 첨부 (fmm_source)',
-	                ppTypeGuideMaxCharsLabel: '유형 가이드 최대 글자수',
+	                ppTypeGuideMaxCharsLabel: '유형 가이드 최대 글자수 (0=무제한)',
 	                ppUseDuckDuckGoLabel: 'DuckDuckGo Instant Answer 참고',
 	                ppRunFillButton: '채우기 실행',
 	                ppRunBothButton: '둘다 실행',
@@ -16087,7 +16321,17 @@ ${explanationWithGlobal}
 	                phase0MultimodalTransportHelp: '기본값은 기존 이미지+텍스트 방식입니다. “PDF + 텍스트”는 로컬 렌더링 없이 PDF를 모델에 첨부합니다.',
 	                phase0SmartRouterLabel: '0단계: Smart QID Router (실험)',
 	                phase0SmartRouterTextHtml: 'PDF 첨부 → <code>Page→QID</code> 라우팅 → QID 묶음 단위 추출(atomic block은 절대 자르지 않음)',
-	                phase0SmartRouterHelp: '분할 페이지 값은 “요청당 최대 페이지”로 사용됩니다. 0이면 한 파일을 1회 요청으로 묶습니다(커질 수 있음).',
+	                phase0SmartRouterHelp: 'Smart router 배치 제한은 아래 설정으로 제어합니다. (기본: 분할 페이지 값 사용)',
+	                phase0SmartRouterBatchModeLabel: '배치 제한',
+	                phase0SmartRouterBatchModeInherit: '기본(분할 페이지 사용)',
+	                phase0SmartRouterBatchModePages: '페이지 수',
+	                phase0SmartRouterBatchModeTokens: '토큰(텍스트 기준)',
+	                phase0SmartRouterMaxPagesLabel: '최대 페이지',
+	                phase0SmartRouterMaxTokensLabel: '최대 토큰(대략)',
+	                phase0SmartRouterUnassignedLabel: '미할당 페이지',
+	                phase0SmartRouterUnassignedExtract: '추출(기존)',
+	                phase0SmartRouterUnassignedDrop: '버리기',
+	                phase0SmartRouterBatchHelp: '0은 제한없음. 토큰 제한은 rawText/ocrText 텍스트 기준으로 대략 계산합니다. (이미지/PDF 자체 토큰은 포함 안 됨)',
 	                phase1SubgroupingLabel: '유형 내 소그룹 (실험)',
 	                phase1SubgroupingTextHtml: '유형 내에서 “한 문장으로 같은 풀이가 가능한” 문제만 <code>subgroup_tag</code>로 묶기 (렌더러 유사도 그룹에 반영)',
 	                phase1SubgroupingHelp: '기본값: 사용 안 함. 활성화 시 3단계(최종 가이드) 이후 추가 호출이 발생합니다.',
@@ -16948,7 +17192,10 @@ ${explanationWithGlobal}
 		                'phase1-arch-select',
 		                'phase2-arch-select', 'phase2-target-select', 'phase2-target-query-input', 'phase2-max-modules-input',
 		                'coverage-max-tokens-input', 'coverage-max-rounds-input', 'coverage-verifier-output-select', 'coverage-verifier-max-tries-input', 'coverage-final-verify-select',
-		                'phase0-pdf-input-mode-select', 'tesseract-lang-input', 'phase0-image-crops-input',
+		                'phase0-pdf-input-mode-select', 'phase0-multimodal-transport-select',
+		                'phase0-smart-router-input',
+		                'phase0-smart-router-batch-mode-select', 'phase0-smart-router-max-pages-input', 'phase0-smart-router-max-tokens-input', 'phase0-smart-router-unassigned-select',
+		                'tesseract-lang-input', 'phase0-image-crops-input',
 		                'phase0-answer-fill-input',
 		                'phase0-answer-fill-fill-answers-input', 'phase0-answer-fill-fill-explanations-input',
 		                'phase0-answer-fill-overwrite-answers-input', 'phase0-answer-fill-overwrite-explanations-input',
