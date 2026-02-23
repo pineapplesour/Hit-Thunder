@@ -915,6 +915,42 @@
 			                                placeholder="e.g. Korean / English" value="English" data-i18n-placeholder="stdProblemLangPlaceholder">
 		                        </div>
 		                        <div class="input-group-tight" style="margin-top: 0.75rem;">
+		                            <label class="ui-label" data-i18n="phase0PdfInputModeLabel">0단계: 추출(OCR) 모드</label>
+		                            <select id="phase0-pdf-input-mode-select" class="ui-input">
+		                                <option value="multimodal" data-i18n="phase0PdfInputModeMultimodal">LLM 멀티모달 (이미지 + PDF 텍스트)</option>
+		                                <option value="raw_text_only" data-i18n="phase0PdfInputModeRawTextOnly">텍스트만 (PDF 텍스트만 / 이미지 없음)</option>
+		                                <option value="tesseract_text" data-i18n="phase0PdfInputModeTesseractText">Tesseract OCR → 텍스트만 (이미지 없음)</option>
+		                            </select>
+		                            <label for="tesseract-lang-input" class="ui-label" style="margin-top:6px;" data-i18n="tesseractLangLabel">Tesseract 언어</label>
+		                            <input type="text" id="tesseract-lang-input" class="ui-input" value="kor+eng"
+		                                placeholder="예) kor+eng" data-i18n-placeholder="tesseractLangPlaceholder">
+		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="tesseractHelp">
+		                                Tesseract는 브라우저에서 traineddata를 내려받습니다. 첫 실행은 느릴 수 있습니다.
+		                            </div>
+		                        </div>
+
+		                        <div class="input-group-tight" style="margin-top: 0.75rem;">
+		                            <label class="ui-label" data-i18n="phase0MultimodalTransportLabel">0단계: 멀티모달 입력 전송</label>
+		                            <select id="phase0-multimodal-transport-select" class="ui-input">
+		                                <option value="images_raw_text" data-i18n="phase0MultimodalTransportImages">이미지 + PDF 텍스트 (기존)</option>
+		                                <option value="pdf_raw_text" data-i18n="phase0MultimodalTransportPdf">PDF + PDF 텍스트 (실험)</option>
+		                            </select>
+		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="phase0MultimodalTransportHelp">
+		                                기본값은 기존 방식입니다. “PDF + 텍스트”는 로컬 렌더링 없이 PDF를 모델에 첨부합니다.
+		                            </div>
+		                        </div>
+
+		                        <div class="input-group-tight" style="margin-top: 0.75rem;">
+		                            <label class="ui-label" data-i18n="phase0SmartRouterLabel">0단계: Smart QID Router (실험)</label>
+		                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
+		                                <input type="checkbox" id="phase0-smart-router-input">
+		                                <span data-i18n-html="phase0SmartRouterTextHtml">PDF를 모델에 첨부해 <code>Page→QID</code>를 라우팅한 뒤, QID 묶음 단위로 추출(atomic block은 절대 자르지 않음)</span>
+		                            </label>
+		                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="phase0SmartRouterHelp">
+		                                분할 페이지 값은 “요청당 최대 페이지”로 사용됩니다. 0이면 한 파일을 1회 요청으로 묶습니다(커질 수 있음).
+		                            </div>
+		                        </div>
+		                        <div class="input-group-tight" style="margin-top: 0.75rem;">
 			                            <label class="ui-label" id="phase0-image-crops-label" data-i18n="phase0ImageCropsLabel">그림/도표 크롭 (옵션)</label>
 		                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
 		                                <input type="checkbox" id="phase0-image-crops-input">
@@ -1203,43 +1239,6 @@
 		                            </div>
 	                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n-html="coverageOverflowHelpHtml">
 	                                “전체” 모드는 문제별로 <code>covered</code>/<code>reason</code>를 모두 받으며, 항목 수가 맞지 않으면 자동 재요청합니다.<br>"가이드 분할 병합"은 문제를 나눠 각각 가이드를 생성 후 병합합니다.
-	                            </div>
-	                        </div>
-
-	                        <div class="input-group-tight">
-	                            <label class="ui-label" data-i18n="phase0PdfInputModeLabel">0단계: 추출(OCR) 모드</label>
-	                            <select id="phase0-pdf-input-mode-select" class="ui-input">
-                                <option value="multimodal" data-i18n="phase0PdfInputModeMultimodal">LLM 멀티모달 (이미지 + PDF 텍스트)</option>
-                                <option value="raw_text_only" data-i18n="phase0PdfInputModeRawTextOnly">텍스트만 (PDF 텍스트만 / 이미지 없음)</option>
-                                <option value="tesseract_text" data-i18n="phase0PdfInputModeTesseractText">Tesseract OCR → 텍스트만 (이미지 없음)</option>
-                            </select>
-	                            <label for="tesseract-lang-input" class="ui-label" style="margin-top:6px;" data-i18n="tesseractLangLabel">Tesseract 언어</label>
-	                            <input type="text" id="tesseract-lang-input" class="ui-input" value="kor+eng"
-	                                placeholder="예) kor+eng" data-i18n-placeholder="tesseractLangPlaceholder">
-                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="tesseractHelp">
-                                Tesseract는 브라우저에서 traineddata를 내려받습니다. 첫 실행은 느릴 수 있습니다.
-                            </div>
-                        </div>
-
-	                        <div class="input-group-tight">
-	                            <label class="ui-label" data-i18n="phase0MultimodalTransportLabel">0단계: 멀티모달 입력 전송</label>
-	                            <select id="phase0-multimodal-transport-select" class="ui-input">
-	                                <option value="images_raw_text" data-i18n="phase0MultimodalTransportImages">이미지 + PDF 텍스트 (기존)</option>
-	                                <option value="pdf_raw_text" data-i18n="phase0MultimodalTransportPdf">PDF + PDF 텍스트 (실험)</option>
-	                            </select>
-	                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="phase0MultimodalTransportHelp">
-	                                기본값은 기존 방식입니다. “PDF + 텍스트”는 로컬 렌더링 없이 PDF를 모델에 첨부합니다.
-	                            </div>
-	                        </div>
-
-	                        <div class="input-group-tight">
-	                            <label class="ui-label" data-i18n="phase0SmartRouterLabel">0단계: Smart QID Router (실험)</label>
-	                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
-	                                <input type="checkbox" id="phase0-smart-router-input">
-	                                <span data-i18n-html="phase0SmartRouterTextHtml">PDF를 모델에 첨부해 <code>Page→QID</code>를 라우팅한 뒤, QID 묶음 단위로 추출(atomic block은 절대 자르지 않음)</span>
-	                            </label>
-	                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="phase0SmartRouterHelp">
-	                                분할 페이지 값은 “요청당 최대 페이지”로 사용됩니다. 0이면 한 파일을 1회 요청으로 묶습니다(커질 수 있음).
 	                            </div>
 	                        </div>
 
