@@ -1490,7 +1490,7 @@
 	                                    <div style="font-size:11px; font-weight:bold; margin:2px 0;" data-i18n="apiMonitorRecentCallsTitle">최근 호출 (50)</div>
 	                                    <div id="api-monitor-totals"
 	                                        style="font-size:10px; font-family:monospace; color:var(--text-3);"
-	                                        data-i18n="apiMonitorTotalsInit">Calls 0 • inflight 0 • ok 0 • fail 0</div>
+	                                        data-i18n="apiMonitorTotalsInit">Calls 0 • waiting 0 • inflight 0 • ok 0 • fail 0</div>
 	                                </div>
 	                                <div class="log-mini" id="api-monitor-recent-calls"
 	                                    style="max-height:360px; font-size:12px;"></div>
@@ -4113,7 +4113,7 @@
                 recentCalls: [], // newest last
                 maxEntries: 400,
                 nextId: 1,
-                inflight: new Map(), // id -> entry
+                pending: new Map(), // id -> entry (waiting | inflight)
                 running: false,
                 timerId: null,
             };
@@ -4134,24 +4134,29 @@
                 try { return new Date(ts).toLocaleTimeString('en-US', { hour12: false }); } catch { return ''; }
             };
 
+            const __isPending = (e) => {
+                const st = (e?.state || '').toString();
+                return st === 'waiting' || st === 'inflight';
+            };
+
             function __trim() {
                 if (state.recentCalls.length <= state.maxEntries) return;
-                // Prefer trimming completed entries first; never drop inflight unless absolutely necessary.
+                // Prefer trimming completed entries first; never drop pending unless absolutely necessary.
                 while (state.recentCalls.length > state.maxEntries) {
-                    const idx = state.recentCalls.findIndex(e => e && e.state !== 'inflight');
+                    const idx = state.recentCalls.findIndex(e => e && !__isPending(e));
                     if (idx < 0) break;
                     const removed = state.recentCalls.splice(idx, 1)[0];
-                    if (removed?.id) state.inflight.delete(removed.id);
+                    if (removed?.id) state.pending.delete(removed.id);
                 }
-                // Still too many (all inflight?) -> trim oldest
+                // Still too many (all pending?) -> trim oldest
                 if (state.recentCalls.length > state.maxEntries) {
                     state.recentCalls.splice(0, state.recentCalls.length - state.maxEntries);
-                    // Rebuild inflight map from remaining
+                    // Rebuild pending map from remaining
                     const next = new Map();
                     for (const e of state.recentCalls) {
-                        if (e?.state === 'inflight' && Number.isFinite(e?.id)) next.set(e.id, e);
+                        if (__isPending(e) && Number.isFinite(e?.id)) next.set(e.id, e);
                     }
-                    state.inflight = next;
+                    state.pending = next;
                 }
             }
 
@@ -4161,7 +4166,7 @@
                     const e = {
                         id,
                         ts: Number.isFinite(entry?.ts) ? entry.ts : __now(),
-                        state: 'inflight', // inflight | done
+                        state: 'waiting', // waiting | inflight | done
                         ok: null,
                         httpStatus: null,
                         key: (entry?.key || '').toString(),
@@ -4170,10 +4175,10 @@
                         actualTokens: null,
                         latencyMs: null,
                         requestId: null,
-                        message: (entry?.message || 'INFLIGHT').toString(),
+                        message: (entry?.message || 'WAITING').toString(),
                     };
                     state.recentCalls.push(e);
-                    state.inflight.set(id, e);
+                    state.pending.set(id, e);
                     __trim();
                     render();
                     return id;
@@ -4182,9 +4187,34 @@
                 }
             }
 
+            function updateCall(id, patch = {}) {
+                try {
+                    const e = (Number.isFinite(id) && state.pending.has(id)) ? state.pending.get(id) : null;
+                    if (!e) return false;
+                    if (patch?.state != null) e.state = String(patch.state || '').toLowerCase();
+                    if (patch?.message != null) e.message = String(patch.message || '');
+                    if (Number.isFinite(patch?.ts)) e.ts = patch.ts;
+                    if (patch?.context != null) e.context = String(patch.context || '');
+                    if (patch?.key != null) e.key = String(patch.key || '');
+                    if (Number.isFinite(patch?.estTokens)) e.estTokens = patch.estTokens;
+                    if (Number.isFinite(patch?.actualTokens)) e.actualTokens = patch.actualTokens;
+                    if (Number.isFinite(patch?.latencyMs)) e.latencyMs = patch.latencyMs;
+                    if (patch?.requestId != null) e.requestId = String(patch.requestId || '');
+                    __trim();
+                    render();
+                    return true;
+                } catch {
+                    return false;
+                }
+            }
+
+            function _getEntry(id) {
+                try { return (Number.isFinite(id) && state.pending.has(id)) ? state.pending.get(id) : null; } catch { return null; }
+            }
+
             function finishCall(id, entry) {
                 try {
-                    const e = (Number.isFinite(id) && state.inflight.has(id)) ? state.inflight.get(id) : null;
+                    const e = (Number.isFinite(id) && state.pending.has(id)) ? state.pending.get(id) : null;
                     const now = __now();
                     if (!e) {
                         // Fallback: append as a completed call
@@ -4200,7 +4230,7 @@
                     e.latencyMs = Number.isFinite(entry?.latencyMs) ? entry.latencyMs : e.latencyMs;
                     e.requestId = (entry?.requestId != null) ? String(entry.requestId) : e.requestId;
                     e.message = (entry?.message != null) ? String(entry.message) : e.message;
-                    state.inflight.delete(id);
+                    state.pending.delete(id);
                     __trim();
                     render();
                 } catch { }
@@ -4228,11 +4258,16 @@
             }
 
             function __computeTotals() {
-                const totalDone = state.recentCalls.filter(e => e && e.state !== 'inflight').length;
-                const inflight = state.inflight.size;
+                const totalDone = state.recentCalls.filter(e => e && e.state === 'done').length;
+                let waiting = 0;
+                let inflight = 0;
+                for (const e of state.pending.values()) {
+                    if (e?.state === 'waiting') waiting++;
+                    else if (e?.state === 'inflight') inflight++;
+                }
                 let ok = 0;
-                for (const e of state.recentCalls) if (e?.state !== 'inflight' && e?.ok) ok++;
-                return { total: totalDone, inflight, ok, fail: totalDone - ok };
+                for (const e of state.recentCalls) if (e?.state === 'done' && e?.ok) ok++;
+                return { total: totalDone, waiting, inflight, ok, fail: totalDone - ok };
             }
 
             function renderKeyMonitor() {
@@ -4343,20 +4378,21 @@
                 if (totalsEl) {
                     totalsEl.textContent = __tGuiFmt('apiMonitorTotalsFmt', {
                         total: totals.total,
+                        waiting: totals.waiting,
                         inflight: totals.inflight,
                         ok: totals.ok,
                         fail: totals.fail
                     });
                 }
 
-                // Always show inflight calls, plus most recent completed calls to fill up to 50 lines.
-                const inflight = Array.from(state.inflight.values());
-                const done = state.recentCalls.filter(e => e && e.state !== 'inflight');
-                const pickDone = done.slice(-Math.max(0, 50 - inflight.length));
-                const recent = [...pickDone, ...inflight].sort((a, b) => (a.ts || 0) - (b.ts || 0));
+                // Always show pending calls, plus most recent completed calls to fill up to 50 lines.
+                const pending = Array.from(state.pending.values());
+                const done = state.recentCalls.filter(e => e && e.state === 'done');
+                const pickDone = done.slice(-Math.max(0, 50 - pending.length));
+                const recent = [...pickDone, ...pending].sort((a, b) => (a.ts || 0) - (b.ts || 0));
                 const lines = recent.map(e => {
                     const t = __fmtTime(e.ts);
-                    const ok = e.state === 'inflight' ? 'INFL' : (e.ok ? 'OK  ' : 'FAIL');
+                    const ok = e.state === 'waiting' ? 'WAIT' : (e.state === 'inflight' ? 'INFL' : (e.ok ? 'OK  ' : 'FAIL'));
                     const hs = Number.isFinite(e.httpStatus) ? `HTTP${e.httpStatus}` : 'HTTP-';
                     const key = e.key ? e.key : '-';
                     const tok = Number.isFinite(e.actualTokens) ? `tok ${e.actualTokens}` : (Number.isFinite(e.estTokens) ? `est ${e.estTokens}` : '');
@@ -4394,7 +4430,7 @@
                 try { render(); } catch { }
             }
 
-            return { startCall, finishCall, recordCall, render, setRunning, getState: () => state };
+            return { startCall, updateCall, _getEntry, finishCall, recordCall, render, setRunning, getState: () => state };
         })();
 
         async function __acquireRateSlot(apiKey, estTokens) {
@@ -5065,14 +5101,14 @@ function __extractActualTokens(data) {
                     // (2) Prepare & Monitor Start
                     try { __apiKeyLive.onPrepare(keyToUse, { uniqueId: context, estTokens }); keyLivePrepared = true; } catch { }
 
-                    // IMMEDIATE MONITOR START: Show INFLIGHT before rate wait
+                    // IMMEDIATE MONITOR START: Show WAITING before rate wait
                     try {
                         monitorCallId = __apiMonitor.startCall({
                             ts: Date.now(),
                             key: maskKey(keyToUse),
                             context,
                             estTokens,
-                            message: 'INFLIGHT',
+                            message: 'WAITING',
                         });
                     } catch { }
 
@@ -5085,12 +5121,10 @@ function __extractActualTokens(data) {
                     // (4) Mark Sent
                     try { __apiKeyLive.onSent(keyToUse, { uniqueId: context, estTokens }); keyLiveSent = true; } catch { }
 
-                    // Update monitor to confirm we are actually sending now (after wait)
+                    // Update monitor: we are past the rate wait; assembling request (not sent yet)
                     try {
                         if (Number.isFinite(monitorCallId)) {
-                            // Just touch the ts or keep msg INFLIGHT
-                            const e = __apiMonitor._getEntry?.(monitorCallId);
-                            if (e) { e.message = 'INFLIGHT (Sent)'; }
+                            __apiMonitor.updateCall?.(monitorCallId, { state: 'waiting', message: 'SENDING' });
                         }
                     } catch { }
 
@@ -5213,12 +5247,18 @@ function __extractActualTokens(data) {
                             context,
                             `→ API Request Sent (mode=${apiMode}, url=${safeUrlForLog || '(n/a)'}, key=${maskKey(keyToUse)}, estTokens=${estTokens}, rateWaitMs=${rateWaitMs}, timeoutMs=${timeoutMs})`
                         );
+                        const bodyJson = JSON.stringify(body);
                         fetchPromise = fetch(requestUrl, {
                             method: 'POST',
                             headers,
-                            body: JSON.stringify(body),
+                            body: bodyJson,
                             signal: abortCtl.signal,
                         });
+                        try {
+                            if (Number.isFinite(monitorCallId)) {
+                                __apiMonitor.updateCall?.(monitorCallId, { state: 'inflight', message: 'INFLIGHT' });
+                            }
+                        } catch { }
                         response = await Promise.race([fetchPromise, timeoutPromise]);
                         latencyMs = Math.max(0, Date.now() - fetchStartAt);
                         requestId = __extractRequestIdFromHeaders(response?.headers);
@@ -15509,8 +15549,8 @@ ${explanationWithGlobal}
 	                apiMonitorColContext: 'Context',
 	                apiMonitorColStatus: 'Status',
 	                apiMonitorRecentCallsTitle: 'Recent calls (50)',
-		                apiMonitorTotalsInit: 'Calls 0 • inflight 0 • ok 0 • fail 0',
-		                apiMonitorTotalsFmt: 'Calls {total} • inflight {inflight} • ok {ok} • fail {fail}',
+		                apiMonitorTotalsInit: 'Calls 0 • waiting 0 • inflight 0 • ok 0 • fail 0',
+		                apiMonitorTotalsFmt: 'Calls {total} • waiting {waiting} • inflight {inflight} • ok {ok} • fail {fail}',
 		                apiMonitorBreakdownTitle: 'Call breakdown (OK)',
 		                apiMonitorBreakdownResetButton: 'Reset',
 		                callStatsSessionAll: 'All sessions',
@@ -15884,8 +15924,8 @@ ${explanationWithGlobal}
 	                apiMonitorColContext: '컨텍스트',
 	                apiMonitorColStatus: '상태',
 	                apiMonitorRecentCallsTitle: '최근 호출 (50)',
-		                apiMonitorTotalsInit: '호출 0 • inflight 0 • 성공 0 • 실패 0',
-		                apiMonitorTotalsFmt: '호출 {total} • inflight {inflight} • 성공 {ok} • 실패 {fail}',
+		                apiMonitorTotalsInit: '호출 0 • waiting 0 • inflight 0 • 성공 0 • 실패 0',
+		                apiMonitorTotalsFmt: '호출 {total} • waiting {waiting} • inflight {inflight} • 성공 {ok} • 실패 {fail}',
 		                apiMonitorBreakdownTitle: '호출 브레이크다운 (성공)',
 		                apiMonitorBreakdownResetButton: '초기화',
 		                callStatsSessionAll: '전체 세션',
