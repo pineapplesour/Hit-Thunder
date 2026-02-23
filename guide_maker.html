@@ -952,6 +952,10 @@
 		                        </div>
 		                        <div class="input-group-tight" style="margin-top: 0.25rem; padding-left: 14px;" id="phase0-smart-router-settings-wrap">
 		                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+		                                <label class="muted" style="font-size:12px;">
+		                                    <input type="checkbox" id="phase0-smart-router-batch-limit-enabled-input" checked>
+		                                    <span data-i18n="phase0SmartRouterBatchEnabledLabel">배치 제한 사용</span>
+		                                </label>
 		                                <label class="muted" style="font-size:12px;" data-i18n="phase0SmartRouterBatchModeLabel">배치 제한</label>
 		                                <select id="phase0-smart-router-batch-mode-select" class="ui-input" style="max-width:220px;">
 		                                    <option value="inherit" data-i18n="phase0SmartRouterBatchModeInherit">기본(분할 페이지 사용)</option>
@@ -1799,6 +1803,7 @@
 		                multimodalTransport: 'images_raw_text', // images_raw_text | pdf_raw_text
 		                smartRouter: {
 		                    enabled: false,
+		                    batchLimitEnabled: true,
 		                    batchLimitMode: 'inherit',       // inherit | pages | tokens
 		                    maxPagesPerRequest: 0,          // 0 = unlimited
 		                    maxTokensPerRequest: 0,         // 0 = unlimited (text-based estimate)
@@ -1915,6 +1920,9 @@
 		                const enabled = (typeof sr === 'boolean')
 		                    ? sr
 		                    : !!(sr?.enabled ?? cfg?.phase0?.smartRouterEnabled ?? false);
+		                const batchLimitEnabled = (sr && typeof sr === 'object')
+		                    ? (typeof sr?.batchLimitEnabled === 'boolean' ? sr.batchLimitEnabled : true)
+		                    : true;
 		                const modeRaw = (sr && typeof sr === 'object') ? String(sr?.batchLimitMode || sr?.mode || '').trim().toLowerCase() : '';
 		                const batchLimitMode = (modeRaw === 'pages' || modeRaw === 'tokens' || modeRaw === 'inherit')
 		                    ? modeRaw
@@ -1933,6 +1941,7 @@
 		                    : 'extract';
 		                base.phase0.smartRouter = {
 		                    enabled: !!enabled,
+		                    batchLimitEnabled,
 		                    batchLimitMode,
 		                    maxPagesPerRequest,
 		                    maxTokensPerRequest,
@@ -2070,13 +2079,14 @@
 	                multimodalTransport: __getStrFromUi('phase0-multimodal-transport-select', 'images_raw_text') || 'images_raw_text',
 	                smartRouter: (() => {
 	                    const enabled = __getBoolFromUi('phase0-smart-router-input', false);
+	                    const batchLimitEnabled = __getBoolFromUi('phase0-smart-router-batch-limit-enabled-input', true);
 	                    const modeRaw = String(__getStrFromUi('phase0-smart-router-batch-mode-select', 'inherit') || 'inherit').trim().toLowerCase();
 	                    const batchLimitMode = (modeRaw === 'inherit' || modeRaw === 'pages' || modeRaw === 'tokens') ? modeRaw : 'inherit';
 	                    const maxPagesPerRequest = __clampInt(__getStrFromUi('phase0-smart-router-max-pages-input', 0), { min: 0, max: 9999, fallback: 0 });
 	                    const maxTokensPerRequest = __clampInt(__getStrFromUi('phase0-smart-router-max-tokens-input', 0), { min: 0, max: 400000, fallback: 0 });
 	                    const unassignedRaw = String(__getStrFromUi('phase0-smart-router-unassigned-select', 'extract') || 'extract').trim().toLowerCase();
 	                    const unassignedMode = (unassignedRaw === 'extract' || unassignedRaw === 'drop') ? unassignedRaw : 'extract';
-	                    return { enabled, batchLimitMode, maxPagesPerRequest, maxTokensPerRequest, unassignedMode };
+	                    return { enabled, batchLimitEnabled, batchLimitMode, maxPagesPerRequest, maxTokensPerRequest, unassignedMode };
 	                })(),
 	                tesseractLang: (__getStrFromUi('tesseract-lang-input', 'kor+eng') || 'kor+eng').trim() || 'kor+eng',
 	                experimentalImageCrops: __getBoolFromUi('phase0-image-crops-input', false),
@@ -2194,6 +2204,7 @@
 	                setVal('phase0-pdf-input-mode-select', c.phase0?.pdfInputMode ?? 'multimodal');
 	                setVal('phase0-multimodal-transport-select', c.phase0?.multimodalTransport ?? 'images_raw_text');
 	                setChk('phase0-smart-router-input', c.phase0?.smartRouter?.enabled ?? false);
+	                setChk('phase0-smart-router-batch-limit-enabled-input', c.phase0?.smartRouter?.batchLimitEnabled ?? true);
 	                setVal('phase0-smart-router-batch-mode-select', c.phase0?.smartRouter?.batchLimitMode ?? 'inherit');
 	                setVal('phase0-smart-router-max-pages-input', c.phase0?.smartRouter?.maxPagesPerRequest ?? 0);
 	                setVal('phase0-smart-router-max-tokens-input', c.phase0?.smartRouter?.maxTokensPerRequest ?? 0);
@@ -13536,6 +13547,7 @@ ${explanationWithGlobal}
                 const { file } = fileWrapper;
                 const splitPages = getEffectiveSplitPages(fileWrapper);
                 const srCfg = (cfg?.phase0?.smartRouter && typeof cfg.phase0.smartRouter === 'object') ? cfg.phase0.smartRouter : {};
+                const srBatchLimitEnabled = (typeof srCfg?.batchLimitEnabled === 'boolean') ? srCfg.batchLimitEnabled : true;
                 const srModeRaw = String(srCfg?.batchLimitMode || 'inherit').trim().toLowerCase();
                 const srBatchLimitMode = (srModeRaw === 'inherit' || srModeRaw === 'pages' || srModeRaw === 'tokens') ? srModeRaw : 'inherit';
                 const srMaxPages = __clampInt(srCfg?.maxPagesPerRequest ?? 0, { min: 0, max: 9999, fallback: 0 });
@@ -13637,9 +13649,13 @@ ${explanationWithGlobal}
                         }
 
                         if (routed && routed.qidToPages) {
-                            const effectiveMaxPages = (srBatchLimitMode === 'pages') ? srMaxPages : splitPages; // inherit -> splitPages
-                            const effectiveMaxTokens = srMaxTokens;
-                            const pageTokensByPageNum = (srBatchLimitMode === 'tokens')
+                            const effectiveMode = srBatchLimitEnabled ? srBatchLimitMode : 'none';
+                            const effectiveMaxPages =
+                                (effectiveMode === 'pages') ? srMaxPages
+                                    : (effectiveMode === 'inherit') ? splitPages
+                                        : 0;
+                            const effectiveMaxTokens = (effectiveMode === 'tokens') ? srMaxTokens : 0;
+                            const pageTokensByPageNum = (effectiveMode === 'tokens')
                                 ? (() => {
                                     const m = new Map();
                                     for (const pd of (pageData || [])) {
@@ -13655,10 +13671,10 @@ ${explanationWithGlobal}
 
                             logger.info(
                                 "FileProcessing",
-                                `Smart router batching: file=${file.name} mode=${srBatchLimitMode} maxPages=${effectiveMaxPages || 0} maxTokens=${effectiveMaxTokens || 0} unassigned=${srUnassignedMode}`
+                                `Smart router batching: file=${file.name} enabled=${srBatchLimitEnabled ? 'on' : 'off'} mode=${effectiveMode} maxPages=${effectiveMaxPages || 0} maxTokens=${effectiveMaxTokens || 0} unassigned=${srUnassignedMode}`
                             );
 
-                            const batches = (srBatchLimitMode === 'tokens')
+                            const batches = (effectiveMode === 'tokens')
                                 ? __packQidBlocksToBatchesByTokens(routed.qidToPages, pageTokensByPageNum, effectiveMaxTokens)
                                 : __packQidBlocksToBatches(routed.qidToPages, effectiveMaxPages);
                             let smartPartIndex = 0;
@@ -13696,7 +13712,7 @@ ${explanationWithGlobal}
                                     smartRouter: true,
                                 });
 
-                                const tokHint = (srBatchLimitMode === 'tokens' && Number.isFinite(batch?.estTokens)) ? `, tokens≈${batch.estTokens}` : '';
+                                const tokHint = (effectiveMode === 'tokens' && Number.isFinite(batch?.estTokens)) ? `, tokens≈${batch.estTokens}` : '';
                                 logger.success("FileProcessing", `Created smart exam unit: ${partName} (qids=${targetLocalQids.length}, pages=${pages.length}${tokHint})`);
                             }
 
@@ -13711,7 +13727,7 @@ ${explanationWithGlobal}
                             if (unassigned.length) {
                                 if (srUnassignedMode === 'drop') {
                                     logger.info("FileProcessing", `Smart router: dropping unassigned pages for ${file.name} (n=${unassigned.length})`);
-                                } else if (srBatchLimitMode === 'tokens') {
+                                } else if (effectiveMode === 'tokens') {
                                     const chunks = __packPagesToBatchesByTokens(unassigned, pageTokensByPageNum, effectiveMaxTokens);
                                     let idx = 0;
                                     for (const ch of (chunks || [])) {
@@ -15560,6 +15576,7 @@ ${explanationWithGlobal}
                         if (uiCfg.pipelineConfig && typeof uiCfg.pipelineConfig === 'object') {
                             applyPipelineConfigToUi(uiCfg.pipelineConfig);
                             localStorage.setItem(EXP_CONFIG_STORAGE_KEY, JSON.stringify(uiCfg.pipelineConfig));
+                            try { getEl('phase0-smart-router-batch-limit-enabled-input')?.dispatchEvent(new Event('change')); } catch { }
                         }
                     } catch { }
 
@@ -15937,6 +15954,7 @@ ${explanationWithGlobal}
 	                phase0SmartRouterLabel: 'Phase 0: Smart QID Router (experimental)',
 	                phase0SmartRouterTextHtml: 'Attach PDF → route <code>Page→QID</code> → extract by QID batches (never splits atomic QID blocks)',
 	                phase0SmartRouterHelp: 'Batch limit is controlled below. (Default: inherit split-pages setting)',
+	                phase0SmartRouterBatchEnabledLabel: 'Enable batch limit',
 	                phase0SmartRouterBatchModeLabel: 'Batch limit',
 	                phase0SmartRouterBatchModeInherit: 'Default (inherit split pages)',
 	                phase0SmartRouterBatchModePages: 'Max pages',
@@ -16322,6 +16340,7 @@ ${explanationWithGlobal}
 	                phase0SmartRouterLabel: '0단계: Smart QID Router (실험)',
 	                phase0SmartRouterTextHtml: 'PDF 첨부 → <code>Page→QID</code> 라우팅 → QID 묶음 단위 추출(atomic block은 절대 자르지 않음)',
 	                phase0SmartRouterHelp: 'Smart router 배치 제한은 아래 설정으로 제어합니다. (기본: 분할 페이지 값 사용)',
+	                phase0SmartRouterBatchEnabledLabel: '배치 제한 사용',
 	                phase0SmartRouterBatchModeLabel: '배치 제한',
 	                phase0SmartRouterBatchModeInherit: '기본(분할 페이지 사용)',
 	                phase0SmartRouterBatchModePages: '페이지 수',
@@ -17194,6 +17213,7 @@ ${explanationWithGlobal}
 		                'coverage-max-tokens-input', 'coverage-max-rounds-input', 'coverage-verifier-output-select', 'coverage-verifier-max-tries-input', 'coverage-final-verify-select',
 		                'phase0-pdf-input-mode-select', 'phase0-multimodal-transport-select',
 		                'phase0-smart-router-input',
+		                'phase0-smart-router-batch-limit-enabled-input',
 		                'phase0-smart-router-batch-mode-select', 'phase0-smart-router-max-pages-input', 'phase0-smart-router-max-tokens-input', 'phase0-smart-router-unassigned-select',
 		                'tesseract-lang-input', 'phase0-image-crops-input',
 		                'phase0-answer-fill-input',
@@ -17217,6 +17237,18 @@ ${explanationWithGlobal}
             };
             syncPhase2TargetUi();
             getEl('phase2-target-select')?.addEventListener('change', syncPhase2TargetUi);
+
+            // Smart router batch-limit enable/disable UI (preserve values while toggling)
+            const syncSmartRouterBatchUi = () => {
+                const enabled = getEl('phase0-smart-router-batch-limit-enabled-input')?.checked ?? true;
+                ['phase0-smart-router-batch-mode-select', 'phase0-smart-router-max-pages-input', 'phase0-smart-router-max-tokens-input']
+                    .forEach(id => {
+                        const el = getEl(id);
+                        if (el) el.disabled = !enabled;
+                    });
+            };
+            syncSmartRouterBatchUi();
+            getEl('phase0-smart-router-batch-limit-enabled-input')?.addEventListener('change', syncSmartRouterBatchUi);
 
             // Log UI performance controls
             const applyLogLimits = () => {
