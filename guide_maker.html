@@ -1222,6 +1222,28 @@
                         </div>
 
 	                        <div class="input-group-tight">
+	                            <label class="ui-label" data-i18n="phase0MultimodalTransportLabel">0단계: 멀티모달 입력 전송</label>
+	                            <select id="phase0-multimodal-transport-select" class="ui-input">
+	                                <option value="images_raw_text" data-i18n="phase0MultimodalTransportImages">이미지 + PDF 텍스트 (기존)</option>
+	                                <option value="pdf_raw_text" data-i18n="phase0MultimodalTransportPdf">PDF + PDF 텍스트 (실험)</option>
+	                            </select>
+	                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="phase0MultimodalTransportHelp">
+	                                기본값은 기존 방식입니다. “PDF + 텍스트”는 로컬 렌더링 없이 PDF를 모델에 첨부합니다.
+	                            </div>
+	                        </div>
+
+	                        <div class="input-group-tight">
+	                            <label class="ui-label" data-i18n="phase0SmartRouterLabel">0단계: Smart QID Router (실험)</label>
+	                            <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-2);">
+	                                <input type="checkbox" id="phase0-smart-router-input">
+	                                <span data-i18n-html="phase0SmartRouterTextHtml">PDF를 모델에 첨부해 <code>Page→QID</code>를 라우팅한 뒤, QID 묶음 단위로 추출(atomic block은 절대 자르지 않음)</span>
+	                            </label>
+	                            <div style="margin-top:4px; font-size:11px; color:var(--text-3);" data-i18n="phase0SmartRouterHelp">
+	                                분할 페이지 값은 “요청당 최대 페이지”로 사용됩니다. 0이면 한 파일을 1회 요청으로 묶습니다(커질 수 있음).
+	                            </div>
+	                        </div>
+
+	                        <div class="input-group-tight">
 	                            <label for="max-data-envelope-tries-input" class="ui-label" data-i18n="maxDataEnvelopeTriesLabel">엄격 &lt;data&gt; 포맷 재시도 횟수 (0 = 무제한)</label>
 	                            <input type="number" id="max-data-envelope-tries-input" class="ui-input" min="0" max="99"
 	                                value="0">
@@ -1751,6 +1773,8 @@
 	            runPhases: { phase0: true, phase1: true, phase2: true, phase3: true }, // derived from runPlan
 		            phase0: {
 		                pdfInputMode: 'multimodal',
+		                multimodalTransport: 'images_raw_text', // images_raw_text | pdf_raw_text
+		                smartRouter: { enabled: false },
 		                tesseractLang: 'kor+eng',
 		                experimentalImageCrops: false,
 		                // NOTE: This is an "export postprocess"-equivalent fill (same engine as Save Postprocessing)
@@ -1854,8 +1878,16 @@
 
 		            // --- phase0 ---
 		            if (cfg?.phase0?.pdfInputMode) base.phase0.pdfInputMode = cfg.phase0.pdfInputMode;
+		            if (cfg?.phase0?.multimodalTransport) base.phase0.multimodalTransport = cfg.phase0.multimodalTransport;
 		            if (cfg?.phase0?.tesseractLang) base.phase0.tesseractLang = cfg.phase0.tesseractLang;
 		            if (typeof cfg?.phase0?.experimentalImageCrops !== 'undefined') base.phase0.experimentalImageCrops = !!cfg.phase0.experimentalImageCrops;
+		            {
+		                const sr = cfg?.phase0?.smartRouter;
+		                const enabled = (typeof sr === 'boolean')
+		                    ? sr
+		                    : !!(sr?.enabled ?? cfg?.phase0?.smartRouterEnabled ?? false);
+		                base.phase0.smartRouter = { enabled: !!enabled };
+		            }
 		            {
 		                const af0 = (cfg?.phase0?.answerFill && typeof cfg.phase0.answerFill === 'object') ? cfg.phase0.answerFill : {};
 		                const inferredTokens = (base?.phase1?.chunkTokens1b ?? base?.phase1?.chunkTokens ?? DEFAULT_CHUNK_TOKENS);
@@ -1984,6 +2016,8 @@
 
 	            cfg.phase0 = {
 	                pdfInputMode: __getStrFromUi('phase0-pdf-input-mode-select', 'multimodal') || 'multimodal',
+	                multimodalTransport: __getStrFromUi('phase0-multimodal-transport-select', 'images_raw_text') || 'images_raw_text',
+	                smartRouter: { enabled: __getBoolFromUi('phase0-smart-router-input', false) },
 	                tesseractLang: (__getStrFromUi('tesseract-lang-input', 'kor+eng') || 'kor+eng').trim() || 'kor+eng',
 	                experimentalImageCrops: __getBoolFromUi('phase0-image-crops-input', false),
 	                answerFill: {
@@ -2098,6 +2132,8 @@
                 setVal('coverage-overflow-threshold-input', c.phase2?.coverage?.overflowThreshold ?? 2);
 
 	                setVal('phase0-pdf-input-mode-select', c.phase0?.pdfInputMode ?? 'multimodal');
+	                setVal('phase0-multimodal-transport-select', c.phase0?.multimodalTransport ?? 'images_raw_text');
+	                setChk('phase0-smart-router-input', c.phase0?.smartRouter?.enabled ?? false);
 	                setVal('tesseract-lang-input', c.phase0?.tesseractLang ?? 'kor+eng');
 	                setChk('phase0-image-crops-input', c.phase0?.experimentalImageCrops ?? false);
 	                setChk('phase0-answer-fill-input', c.phase0?.answerFill?.enabled ?? false);
@@ -4524,6 +4560,15 @@
                 if (Array.isArray(content)) {
                     content.forEach(part => {
                         if (part?.type === 'text' && part.text) parts.push({ text: String(part.text) });
+                        if (part?.type === 'file' && part.file) {
+                            const f = part.file || {};
+                            const filename = String(f.filename || f.name || '').trim();
+                            const data = String(f.file_data || f.fileData || f.data || '').trim();
+                            const mimeType = String(f.mime_type || f.mimeType || __inferMimeTypeFromFilename(filename) || '').trim() || 'application/octet-stream';
+                            if (data) {
+                                parts.push({ inlineData: { mimeType, data } });
+                            }
+                        }
                         if (part?.type === 'image_url' && part.image_url?.url) {
                             const url = String(part.image_url.url);
                             const m = url.match(/^data:([^;]+);base64,(.+)$/i);
@@ -8556,6 +8601,10 @@ Output: Return the complete merged guide as plain text. No XML tags needed.`
         let examPapers = [];                       // [{ fileName, type:'pdf'|'txt', images?[], rawText? content? }]
         let activeProcess = null;                  // Full process state
         let typeRerunState = { status: 'idle', types: [], results: [], error: null };
+
+        // Phase0 runtime caches (NOT serialized to progress files)
+        const __phase0PdfFileCache = new Map(); // sourceFileName -> { filename, mimeType, base64 }
+        const __phase0PdfFileCachePromises = new Map(); // sourceFileName -> Promise<cacheEntry>
         let incrementalPatchState = {
             status: 'idle',            // idle|ready|processing|completed|error
             basePayload: null,         // parsed base { types:[...], classificationStandard? }
@@ -10491,7 +10540,16 @@ LANGUAGE CONSTRAINT: The standard problem must be in ${language}.` }
 
         // ----- PHASE 0: Extract Q&A from each paper -----
         async function generatePhase0Extraction() {
-            updateStatus("Phase 0: Extract Q&A", "Extracting problems in 3-page chunks with OCR + raw text...");
+            const p0 = (() => { try { return getPipelineConfig()?.phase0 || {}; } catch { return {}; } })();
+            const srOn = !!p0?.smartRouter?.enabled;
+            const pdfMode = String(p0?.pdfInputMode || 'multimodal');
+            const transport = String(p0?.multimodalTransport || 'images_raw_text');
+            const subtext = srOn
+                ? "Smart router: extracting by routed QID batches (PDF attached for routing)..."
+                : (pdfMode === 'multimodal' && transport === 'pdf_raw_text'
+                    ? "Extracting problems with PDF+rawText transport (no rendered images)..."
+                    : "Extracting problems from OCR units...");
+            updateStatus("Phase 0: Extract Q&A", subtext);
             activeProcess.activeTabId = 'phase0-extract';
             renderActiveProcess();
 
@@ -10546,11 +10604,27 @@ LANGUAGE CONSTRAINT: The standard problem must be in ${language}.` }
 	                    const language = __getGuideLanguageFromUi();
 	                    const pCfg = getPipelineConfig();
 	                    const pdfInputMode = (pCfg?.phase0?.pdfInputMode || 'multimodal').toString();
+	                    const multimodalTransport = String(pCfg?.phase0?.multimodalTransport || 'images_raw_text').trim() || 'images_raw_text';
+	                    const wantsPdfTransport = (pdfInputMode === 'multimodal' && multimodalTransport === 'pdf_raw_text');
 	                    const tessLang = (pCfg?.phase0?.tesseractLang || 'kor+eng').toString().trim() || 'kor+eng';
 	                    const enableImageCrops = !!pCfg?.phase0?.experimentalImageCrops;
 	
 	                    let content;
 	                    let unitImages = null;
+	                    const targetLocalQids = Array.isArray(paper?.targetLocalQids)
+	                        ? paper.targetLocalQids.map(x => String(x || '').trim()).filter(Boolean)
+	                        : [];
+	                    const targetBlock = targetLocalQids.length
+	                        ? `\n\nTARGET_QIDS (extract ONLY these; copy EXACTLY into <qid>):\n${targetLocalQids.map(q => `- ${q}`).join('\n')}\n\nOUTPUT CONSTRAINT:\n- Output exactly one <item> per TARGET_QID.\n- Do NOT output any other QIDs.\n`
+	                        : '';
+	                    const focusPagesHint = (() => {
+	                        const nums = Array.isArray(paper?.pageNums) ? paper.pageNums : null;
+	                        if (nums && nums.length) return `FOCUS_PAGES: ${nums.join(', ')}`;
+	                        const pStart = Number.isFinite(paper?.pageStart) ? paper.pageStart : null;
+	                        const pEnd = Number.isFinite(paper?.pageEnd) ? paper.pageEnd : null;
+	                        if (pStart && pEnd) return `FOCUS_PAGES: ${pStart}-${pEnd}`;
+	                        return '';
+	                    })();
 	                    if (paper.type === 'txt') {
 	                        const extractionInstruction = `Extract all problems from this exam paper text.
 	- Extract all questions, sub-questions, answer choices, answers (if shown), and explanations (if provided)
@@ -10563,7 +10637,8 @@ LANGUAGE CONSTRAINT: The standard problem must be in ${language}.` }
 	                    } else {
 	                        const images = Array.isArray(paper.images) ? paper.images : [];
 	                        unitImages = images;
-	                        const useImages = (pdfInputMode === 'multimodal') && images.length > 0;
+	                        const usePdfFile = wantsPdfTransport;
+	                        const useImages = (pdfInputMode === 'multimodal') && !usePdfFile && images.length > 0;
 	
 	                        if (useImages) {
 	                            const extractionInstruction = paper.rawText
@@ -10575,6 +10650,8 @@ LANGUAGE CONSTRAINT: The standard problem must be in ${language}.` }
 	- Extract all questions, sub-questions, answer choices, answers (if shown), and explanations (if provided)
 	- LANGUAGE CONSTRAINT: Write ALL extracted fields in ${language}. In particular, the <question_text> must include a **fully detailed description** of any non-text visuals in ${language}.
 	${enableImageCrops ? `- Do NOT crop images yourself. (A later step may attach image crops.) Still describe visuals in text.\n` : ''}
+	${focusPagesHint ? `\n${focusPagesHint}\n` : ''}
+	${targetBlock}
 	
 	RAW TEXT (use this to correct OCR errors):
 	${paper.rawText}
@@ -10584,6 +10661,8 @@ LANGUAGE CONSTRAINT: The standard problem must be in ${language}.` }
 	- Extract all questions, sub-questions, answer choices, answers (if shown), and explanations (if provided)
 	- LANGUAGE CONSTRAINT: Write ALL extracted fields in ${language}. In particular, the <question_text> must include a **fully detailed description** of any non-text visuals in ${language}.
 	${enableImageCrops ? `- Do NOT crop images yourself. (A later step may attach image crops.) Still describe visuals in text.\n` : ''}
+	${focusPagesHint ? `\n${focusPagesHint}\n` : ''}
+	${targetBlock}
 	`;
 
                             logger.info(context, `PDF input mode: multimodal (images=${images.length})`);
@@ -10594,7 +10673,40 @@ LANGUAGE CONSTRAINT: The standard problem must be in ${language}.` }
                                     image_url: { url: img }
                                 });
                             });
-                        } else {
+                        } else if (usePdfFile) {
+                            const basePaperName = hasParts ? state.paperName : (paper.sourceFileName || paper.fileName);
+                            const pdfEntry = await __getPdfEntryBySourceFileName(basePaperName);
+                            const pdfDataUrl = pdfEntry ? __makeDataUrlFromBase64(pdfEntry) : '';
+                            const pdfPart = pdfDataUrl ? { type: 'image_url', image_url: { url: pdfDataUrl } } : null;
+
+                            if (!pdfPart) {
+                                logger.warn(context, `PDF transport requested but PDF bytes are unavailable (sourceFileName=${basePaperName}). Falling back to text-only extraction.`);
+                            } else {
+                                const rawText = String(paper.rawText || '').trim();
+                                const extractionInstruction = `You are extracting problems from a PDF. I'm providing the PDF file AND raw text extracted from the PDF.
+
+INSTRUCTIONS:
+- Use the attached PDF as the primary source for layout and visuals.
+- Use the raw text below for search/navigation; it may be empty for scanned PDFs.
+- Extract all questions, sub-questions, answer choices, answers (if shown), and explanations (if provided)
+- LANGUAGE CONSTRAINT: Write ALL extracted fields in ${language}. In particular, the <question_text> must include a **fully detailed description** of any non-text visuals in ${language}.
+${enableImageCrops ? `- Do NOT crop images yourself. (A later step may attach image crops.) Still describe visuals in text.\n` : ''}
+${focusPagesHint ? `\n${focusPagesHint}\n` : ''}
+${targetBlock}
+
+RAW TEXT (use this to correct OCR errors):
+${rawText || '(empty)'}
+
+Now examine the attached PDF and extract the requested problems.`;
+
+                                logger.info(context, `PDF input mode: multimodal (PDF transport, rawText=${rawText ? 'yes' : 'no'})`);
+                                content = [{ type: 'text', text: extractionInstruction }, pdfPart];
+                            }
+                            if (!content) {
+                                // fall through to text-only
+                            }
+                        }
+                        if (!content) {
                             let ocrText = String(paper.ocrText || '').trim();
                             if (pdfInputMode === 'tesseract_text' && !ocrText && images.length > 0) {
                                 logger.warn(context, `PDF input mode: tesseract_text (no cached OCR text). Running Tesseract locally...`);
@@ -10616,6 +10728,7 @@ INSTRUCTIONS:
 - Extract all questions, sub-questions, answer choices, answers (if shown), and explanations (if provided)
 - Reconstruct missing layout as best as possible from the text sources below
 - LANGUAGE CONSTRAINT: Write ALL extracted fields in ${language}.
+${focusPagesHint ? `\n${focusPagesHint}\n` : ''}${targetBlock}
 
 ${ocrText ? `TESSERACT OCR TEXT:\n${ocrText}\n\n` : ''}${rawText ? `RAW PDF TEXT:\n${rawText}\n\n` : ''}
 Now extract all problems.`;
@@ -10637,9 +10750,16 @@ Now extract all problems.`;
                     const items = await requestAndParseDataEnvelope(payload, context, { phase: 'phase0' });
 
 	                    const extractedQasByQid = {};
+	                    const targetSet = targetLocalQids.length ? new Set(targetLocalQids) : null;
+	                    const seenTargetLocal = new Set();
+	                    let ignoredNonTargetN = 0;
 	                    let dedupedChoicesN = 0;
 	                    items.forEach(it => {
                         const qa = parseQAItem(it.value);
+                        const localQid = String(qa.qid || '').trim();
+                        if (!localQid) return;
+                        if (targetSet && !targetSet.has(localQid)) { ignoredNonTargetN++; return; }
+                        if (targetSet) seenTargetLocal.add(localQid);
                         if (qa.qid) {
                             const basePaperName = hasParts ? state.paperName : paper.fileName;
                             const hint = (() => {
@@ -10650,13 +10770,13 @@ Now extract all problems.`;
                             })();
                             const safeHint = String(hint || '').replace(/[^0-9A-Za-z가-힣]+/g, '').slice(0, 30) || 'dup';
 
-                            let globalQid = makeGlobalQid(basePaperName, qa.qid);
+                            let globalQid = makeGlobalQid(basePaperName, localQid);
                             if (extractedQasByQid[globalQid] || (hasParts && state.qasByQid && state.qasByQid[globalQid])) {
-                                let local2 = `${qa.qid}@${safeHint}`;
+                                let local2 = `${localQid}@${safeHint}`;
                                 globalQid = makeGlobalQid(basePaperName, local2);
                                 let n = 2;
                                 while (extractedQasByQid[globalQid] || (hasParts && state.qasByQid && state.qasByQid[globalQid])) {
-                                    local2 = `${qa.qid}@${safeHint}${n}`;
+                                    local2 = `${localQid}@${safeHint}${n}`;
                                     globalQid = makeGlobalQid(basePaperName, local2);
                                     n++;
                                 }
@@ -10675,7 +10795,7 @@ Now extract all problems.`;
                             } catch { }
 
 	                            extractedQasByQid[globalQid] = {
-	                                local_qid: qa.qid,
+	                                local_qid: localQid,
 	                                paperName: basePaperName,
 	                                question_text,
 	                                answer_choices,
@@ -10684,6 +10804,15 @@ Now extract all problems.`;
 	                            };
 	                        }
 	                    });
+	                    if (targetSet) {
+	                        const missing = targetLocalQids.filter(q => !seenTargetLocal.has(q));
+	                        if (ignoredNonTargetN > 0) {
+	                            logger.warn(context, `Smart router: ignored ${ignoredNonTargetN} non-target item(s).`);
+	                        }
+	                        if (missing.length) {
+	                            logger.warn(context, `Smart router: missing TARGET_QIDS (${missing.length}): ${missing.slice(0, 12).join(', ')}${missing.length > 12 ? '…' : ''}`);
+	                        }
+	                    }
 	                    if (dedupedChoicesN > 0) {
 	                        logger.info(context, `Extraction hygiene: removed duplicate choice blocks in ${dedupedChoicesN} item(s).`);
 	                    }
@@ -12473,11 +12602,28 @@ ${explanationWithGlobal}
                                 const pStart = Number.isFinite(u?.pageStart) ? u.pageStart : null;
                                 const pEnd = Number.isFinite(u?.pageEnd) ? u.pageEnd : null;
                                 const pIdx = Number.isFinite(u?.partIndex) ? u.partIndex : null;
-                                const unitLabel = (u?.type === 'pdf')
-                                    ? (isSplit && pIdx && pStart && pEnd
-                                        ? `Part ${pIdx}, p${pStart}-${pEnd}`
-                                        : (pStart && pEnd ? `Full PDF (p${pStart}-${pEnd})` : 'Full PDF'))
-                                    : 'TXT';
+                                const unitLabel = (() => {
+                                    if (u?.type !== 'pdf') return 'TXT';
+                                    const smart = !!u?.smartRouter;
+                                    if (smart) {
+                                        const qids = Array.isArray(u?.targetLocalQids)
+                                            ? u.targetLocalQids.map(x => String(x || '').trim()).filter(Boolean)
+                                            : [];
+                                        const qidPreview = qids.length
+                                            ? `QIDs ${qids.slice(0, 6).join(', ')}${qids.length > 6 ? '…' : ''}`
+                                            : '';
+                                        const range = (pStart && pEnd) ? `p${pStart}-${pEnd}` : '';
+                                        if (u?.smartRouterUnassigned) {
+                                            return `Smart Unassigned${range ? `, ${range}` : ''}`;
+                                        }
+                                        const part = (pIdx && range) ? `Part ${pIdx}, ${range}` : (range ? range : (pIdx ? `Part ${pIdx}` : ''));
+                                        const extras = [qidPreview, part].filter(Boolean).join(' · ');
+                                        return extras ? `Smart · ${extras}` : 'Smart';
+                                    }
+                                    if (isSplit && pIdx && pStart && pEnd) return `Part ${pIdx}, p${pStart}-${pEnd}`;
+                                    if (pStart && pEnd) return `Full PDF (p${pStart}-${pEnd})`;
+                                    return 'Full PDF';
+                                })();
                                 return {
                                     unitId: uFileName,
                                     unitLabel,
@@ -12696,6 +12842,65 @@ ${explanationWithGlobal}
             const global = getGlobalSplitPagesOverride();
             if (Number.isFinite(global) && global > 0) return global;
             return 0;
+        }
+
+        function __inferMimeTypeFromFilename(filename) {
+            const name = String(filename || '').toLowerCase().trim();
+            if (!name) return '';
+            if (name.endsWith('.pdf')) return 'application/pdf';
+            if (name.endsWith('.png')) return 'image/png';
+            if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+            if (name.endsWith('.webp')) return 'image/webp';
+            if (name.endsWith('.gif')) return 'image/gif';
+            if (name.endsWith('.txt')) return 'text/plain';
+            return '';
+        }
+
+        function __readFileAsDataUrl(file) {
+            const f = file;
+            return new Promise((resolve, reject) => {
+                try {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(String(e?.target?.result || ''));
+                    reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
+                    reader.readAsDataURL(f);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
+
+        async function __getCachedPdfFileEntry(file) {
+            const f = file;
+            const key = String(f?.name || '').trim();
+            if (!key) throw new Error('Missing PDF file name');
+            if (__phase0PdfFileCache.has(key)) return __phase0PdfFileCache.get(key);
+            if (__phase0PdfFileCachePromises.has(key)) return await __phase0PdfFileCachePromises.get(key);
+
+            const p = (async () => {
+                const dataUrl = await __readFileAsDataUrl(f);
+                const m = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/i);
+                if (!m) throw new Error('Failed to read PDF as base64 data URL');
+                const mimeType = String(m[1] || '').trim() || (__inferMimeTypeFromFilename(f.name) || 'application/octet-stream');
+                const base64 = String(m[2] || '').trim();
+                const entry = { filename: f.name, mimeType, base64 };
+                __phase0PdfFileCache.set(key, entry);
+                return entry;
+            })();
+
+            __phase0PdfFileCachePromises.set(key, p);
+            try {
+                return await p;
+            } finally {
+                __phase0PdfFileCachePromises.delete(key);
+            }
+        }
+
+        function __makeDataUrlFromBase64(entry) {
+            const mimeType = String(entry?.mimeType || '').trim() || 'application/octet-stream';
+            const base64 = String(entry?.base64 || '').trim();
+            if (!base64) return '';
+            return `data:${mimeType};base64,${base64}`;
         }
 
         function addFilesToList(files) {
@@ -12938,21 +13143,200 @@ ${explanationWithGlobal}
             return __countTokens(text);
         }
 
+        function __parseQidsBlockText(raw) {
+            const s = String(raw || '').replace(/\r/g, '').trim();
+            if (!s) return [];
+            // Prefer newline-separated (safe for QIDs with spaces)
+            const lines = s.split('\n').map(x => x.trim()).filter(Boolean);
+            if (lines.length > 1) return lines;
+            // Fallback: allow comma/semicolon-separated on a single line
+            const one = lines[0] || '';
+            if (one.includes(',') || one.includes(';')) {
+                return one
+                    .split(/[;,]/g)
+                    .map(x => x.trim())
+                    .filter(Boolean);
+            }
+            return [one];
+        }
+
+        async function __getPdfEntryBySourceFileName(sourceFileName) {
+            const key = String(sourceFileName || '').trim();
+            if (!key) return null;
+            if (__phase0PdfFileCache.has(key)) return __phase0PdfFileCache.get(key);
+            const fw = (uploadedFiles || []).find(w => w?.file?.name === key);
+            if (!fw || !fw.file) return null;
+            try { return await __getCachedPdfFileEntry(fw.file); } catch { return null; }
+        }
+
+        async function __runPageToQidRouterForPdfFile(file, totalPages, { contextLabel } = {}) {
+            const f = file;
+            if (!f) throw new Error('Router: missing file');
+            if (!Number.isFinite(totalPages) || totalPages <= 0) throw new Error('Router: invalid totalPages');
+
+            const pdfEntry = await __getCachedPdfFileEntry(f);
+            const pdfDataUrl = __makeDataUrlFromBase64(pdfEntry);
+            const pdfPart = pdfDataUrl
+                ? { type: 'image_url', image_url: { url: pdfDataUrl } }
+                : null;
+            if (!pdfPart) throw new Error('Router: failed to build PDF attachment');
+
+            const userText =
+                `You are a Page→QID router.\n` +
+                `You are given ONE exam PDF file. Your task is to map each PDF page to the question IDs (QIDs) that the page belongs to.\n\n` +
+                `RULES:\n` +
+                `- A page can belong to multiple QIDs (e.g., two questions on the same page, or a solution page covering multiple QIDs).\n` +
+                `- Include both question statements and any official answer/solution/explanation pages.\n` +
+                `- If a page is a continuation with no explicit QID, infer the most likely QID(s) from context.\n` +
+                `- In <qids>, output ONE QID per line. Preserve spaces if present.\n` +
+                `- If a page contains no question/solution content (cover/blank), leave <qids> empty.\n\n` +
+                `OUTPUT FORMAT (exactly ${totalPages} items; one per page_num 1..${totalPages}):\n` +
+                `<data>\n` +
+                `  <item>\n` +
+                `    <id>1</id>\n` +
+                `    <page_num>1</page_num>\n` +
+                `    <qids>\n` +
+                `Q1\n` +
+                `Q2\n` +
+                `    </qids>\n` +
+                `    <confidence>0.82</confidence>\n` +
+                `    <note>optional</note>\n` +
+                `  </item>\n` +
+                `  ...\n` +
+                `</data>\n\n` +
+                `Return ONLY the single <data> block.`;
+
+            const payload = {
+                model: getApiConfig().model,
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You route PDF pages to question IDs. Be conservative; do not hallucinate QIDs not supported by the PDF.'
+                    },
+                    { role: 'user', content: [{ type: 'text', text: userText }, pdfPart] }
+                ]
+            };
+
+            const context = String(contextLabel || `PageToQidRouter-${f.name}`);
+            const items = await requestAndParseDataEnvelope(payload, context, { phase: 'phase0' });
+
+            const pageToQids = new Map(); // pageNum -> string[]
+            const qidToPages = new Map(); // qid -> Set<number>
+            const pageMeta = new Map(); // pageNum -> { confidence, note }
+
+            (items || []).forEach(it => {
+                const v = String(it?.value || '').trim();
+                if (!v) return;
+                const pageNum = parseInt(parseTag(v, 'page_num'), 10);
+                if (!Number.isFinite(pageNum) || pageNum < 1 || pageNum > totalPages) return;
+                const qids = __parseQidsBlockText(parseTag(v, 'qids'));
+                const conf = parseFloat(parseTag(v, 'confidence'));
+                const note = String(parseTag(v, 'note') || '').trim();
+                pageToQids.set(pageNum, qids);
+                pageMeta.set(pageNum, {
+                    confidence: Number.isFinite(conf) ? conf : null,
+                    note: note || null,
+                });
+                qids.forEach(qid => {
+                    if (!qidToPages.has(qid)) qidToPages.set(qid, new Set());
+                    qidToPages.get(qid).add(pageNum);
+                });
+            });
+
+            // Ensure every page is present (empty qids allowed)
+            for (let p = 1; p <= totalPages; p++) {
+                if (!pageToQids.has(p)) pageToQids.set(p, []);
+            }
+
+            const unassignedPages = [];
+            for (let p = 1; p <= totalPages; p++) {
+                const q = pageToQids.get(p) || [];
+                if (!q.length) unassignedPages.push(p);
+            }
+
+            return { pageToQids, qidToPages, unassignedPages, pageMeta };
+        }
+
+        function __packQidBlocksToBatches(qidToPages, maxPagesPerBatch) {
+            const maxPages = Number.isFinite(maxPagesPerBatch) && maxPagesPerBatch > 0 ? maxPagesPerBatch : Infinity;
+
+            const blocks = Array.from((qidToPages || new Map()).entries()).map(([qid, pagesSet]) => {
+                const pages = Array.from(pagesSet || []).filter(p => Number.isFinite(p)).sort((a, b) => a - b);
+                return { qid: String(qid || '').trim(), pages, minPage: pages.length ? pages[0] : Infinity };
+            }).filter(b => b.qid && b.pages.length);
+
+            blocks.sort((a, b) => {
+                if (a.minPage !== b.minPage) return a.minPage - b.minPage;
+                return a.qid.localeCompare(b.qid);
+            });
+
+            const batches = [];
+            let cur = { qids: [], pagesSet: new Set(), qidToPages: {} };
+
+            const flush = () => {
+                if (!cur.qids.length) return;
+                const pages = Array.from(cur.pagesSet).sort((a, b) => a - b);
+                batches.push({
+                    qids: cur.qids.slice(),
+                    pages,
+                    qidToPages: { ...cur.qidToPages },
+                    pageStart: pages.length ? pages[0] : null,
+                    pageEnd: pages.length ? pages[pages.length - 1] : null,
+                });
+                cur = { qids: [], pagesSet: new Set(), qidToPages: {} };
+            };
+
+            for (const b of blocks) {
+                const nextPages = new Set(cur.pagesSet);
+                b.pages.forEach(p => nextPages.add(p));
+                if (cur.qids.length > 0 && nextPages.size > maxPages) {
+                    flush();
+                }
+                // Atomic block: never split a single QID across batches.
+                cur.qids.push(b.qid);
+                cur.qidToPages[b.qid] = b.pages.slice();
+                b.pages.forEach(p => cur.pagesSet.add(p));
+            }
+            flush();
+            return batches;
+        }
+
         async function processUploadedFiles() {
             examPapers = [];
-            updateStatus("Processing Files...", "Converting files and extracting text (PDF images/raw text)...");
             logger.info("FileProcessing", "Starting file processing with OCR...");
 
             // Phase 0 PDF input mode decides whether we generate images / run OCR.
+            try {
+                __phase0PdfFileCache.clear();
+                __phase0PdfFileCachePromises.clear();
+            } catch { }
             const cfg = getPipelineConfigFromUi();
             const pdfMode = cfg?.phase0?.pdfInputMode || 'multimodal';
+            const multimodalTransport = String(cfg?.phase0?.multimodalTransport || 'images_raw_text').trim() || 'images_raw_text';
+            const smartRouterEnabled = !!cfg?.phase0?.smartRouter?.enabled;
             const tessLang = cfg?.phase0?.tesseractLang || 'kor+eng';
-            const needsImages = (pdfMode === 'multimodal' || pdfMode === 'tesseract_text');
+            const enableImageCrops = !!cfg?.phase0?.experimentalImageCrops;
+            const wantsPdfTransport = (pdfMode === 'multimodal' && multimodalTransport === 'pdf_raw_text');
+            const needsImages =
+                (pdfMode === 'tesseract_text') ||
+                (pdfMode === 'multimodal' && multimodalTransport === 'images_raw_text') ||
+                (pdfMode === 'multimodal' && enableImageCrops);
             const needsTesseract = (pdfMode === 'tesseract_text');
+            updateStatus(
+                "Processing Files...",
+                smartRouterEnabled
+                    ? "Smart router enabled: extracting pages → Page→QID routing → building QID-batch units..."
+                    : (wantsPdfTransport
+                        ? "Extracting raw PDF text (and caching PDF) for PDF+rawText OCR mode..."
+                        : "Converting files and extracting text (PDF images/raw text)...")
+            );
             if (needsTesseract) {
                 logger.warn("FileProcessing", `Tesseract mode enabled (lang=${tessLang}). This runs OCR locally and can be slow.`);
             } else if (!needsImages) {
-                logger.info("FileProcessing", `PDF mode = text-only (no images). This is cheaper for LLM but may fail on scanned PDFs.`);
+                logger.info("FileProcessing", `PDF mode = text-only / PDF transport (no rendered images). This is cheaper locally but may fail if the model cannot read the PDF.`);
+            }
+            if (smartRouterEnabled) {
+                logger.info("FileProcessing", `Smart router: ON (Page→QID). splitPages is treated as max pages per extraction request; atomic QID blocks are never split.`);
             }
 
             const processingPromises = uploadedFiles.map(async (fileWrapper) => {
@@ -12978,6 +13362,15 @@ ${explanationWithGlobal}
                 }
 
                 if (file.type === 'application/pdf') {
+                    // Cache the PDF for later router/extraction attachment (OpenAI-compatible file part / Gemini inlineData).
+                    if (smartRouterEnabled || wantsPdfTransport) {
+                        try {
+                            await __getCachedPdfFileEntry(file);
+                        } catch (e) {
+                            logger.warn("FileProcessing", `Failed to cache PDF base64 for ${file.name}: ${e?.message || e}`);
+                        }
+                    }
+
                     const loadingTask = pdfjsLib.getDocument(URL.createObjectURL(file));
                     const pdf = await loadingTask.promise;
                     const totalPages = pdf.numPages;
@@ -13028,9 +13421,114 @@ ${explanationWithGlobal}
                         logger.info("FileProcessing", `Processed page ${pageNum}/${totalPages} of ${file.name}`);
                     }
 
-                    // Now chunk the pages based on splitPages setting
-                    const splitInterval = splitPages > 0 ? splitPages : totalPages;
+                    const byPage = new Map(pageData.map(p => [p.pageNum, p]));
 
+                    if (smartRouterEnabled) {
+                        let routed = null;
+                        try {
+                            routed = await __runPageToQidRouterForPdfFile(file, totalPages, { contextLabel: `PageToQidRouter-${file.name}` });
+                            logger.success(
+                                "FileProcessing",
+                                `Smart router OK: ${file.name} (qids=${routed?.qidToPages?.size || 0}, unassignedPages=${Array.isArray(routed?.unassignedPages) ? routed.unassignedPages.length : 0})`
+                            );
+                        } catch (e) {
+                            logger.warn("FileProcessing", `Smart router failed for ${file.name} (fallback to sequential split): ${e?.message || e}`);
+                            routed = null;
+                        }
+
+                        if (routed && routed.qidToPages) {
+                            const batches = __packQidBlocksToBatches(routed.qidToPages, splitPages);
+                            let smartPartIndex = 0;
+                            for (const batch of (batches || [])) {
+                                if (processController.stop) throw new Error("Operation cancelled.");
+                                const pages = Array.isArray(batch?.pages) ? batch.pages : [];
+                                const targetLocalQids = Array.isArray(batch?.qids) ? batch.qids.slice().filter(Boolean) : [];
+                                if (!pages.length || !targetLocalQids.length) continue;
+
+                                smartPartIndex++;
+                                const startPage = Number.isFinite(batch?.pageStart) ? batch.pageStart : pages[0];
+                                const endPage = Number.isFinite(batch?.pageEnd) ? batch.pageEnd : pages[pages.length - 1];
+                                const partName = `${file.name} (Smart Part ${smartPartIndex}, p${startPage}-${endPage})`;
+
+                                const relevantPages = pages.map(pn => byPage.get(pn)).filter(Boolean);
+                                const images = needsImages ? relevantPages.map(p => p.imageDataUrl).filter(Boolean) : [];
+                                const rawTexts = relevantPages.map(p => `[Page ${p.pageNum}]\n${p.rawText}`).join('\n\n');
+                                const ocrTexts = needsTesseract
+                                    ? relevantPages.map(p => `[Page ${p.pageNum}]\n${p.ocrText || ''}`).join('\n\n')
+                                    : null;
+
+                                examPapers.push({
+                                    fileName: partName,
+                                    sourceFileName: file.name,
+                                    type: 'pdf',
+                                    images,
+                                    rawText: rawTexts,
+                                    ocrText: ocrTexts,
+                                    partIndex: smartPartIndex,
+                                    pageStart: startPage,
+                                    pageEnd: endPage,
+                                    pageNums: pages.slice(),
+                                    targetLocalQids,
+                                    targetQidPages: (batch?.qidToPages && typeof batch.qidToPages === 'object') ? batch.qidToPages : null,
+                                    smartRouter: true,
+                                });
+
+                                logger.success("FileProcessing", `Created smart exam unit: ${partName} (qids=${targetLocalQids.length}, pages=${pages.length})`);
+                            }
+
+                            const unassigned = (Array.isArray(routed?.unassignedPages) ? routed.unassignedPages : [])
+                                .filter(pn => {
+                                    const pd = byPage.get(pn);
+                                    if (!pd) return false;
+                                    const raw = String(pd.rawText || '').trim();
+                                    return raw.length > 0 || !!pd.imageDataUrl || wantsPdfTransport;
+                                })
+                                .sort((a, b) => a - b);
+                            if (unassigned.length) {
+                                const maxPages = splitPages > 0 ? splitPages : unassigned.length;
+                                let idx = 0;
+                                for (let i = 0; i < unassigned.length; i += maxPages) {
+                                    if (processController.stop) throw new Error("Operation cancelled.");
+                                    idx++;
+                                    const pages = unassigned.slice(i, i + maxPages);
+                                    const startPage = pages[0];
+                                    const endPage = pages[pages.length - 1];
+                                    const partName = `${file.name} (Smart Unassigned ${idx}, p${startPage}-${endPage})`;
+
+                                    const relevantPages = pages.map(pn => byPage.get(pn)).filter(Boolean);
+                                    const images = needsImages ? relevantPages.map(p => p.imageDataUrl).filter(Boolean) : [];
+                                    const rawTexts = relevantPages.map(p => `[Page ${p.pageNum}]\n${p.rawText}`).join('\n\n');
+                                    const ocrTexts = needsTesseract
+                                        ? relevantPages.map(p => `[Page ${p.pageNum}]\n${p.ocrText || ''}`).join('\n\n')
+                                        : null;
+
+                                    examPapers.push({
+                                        fileName: partName,
+                                        sourceFileName: file.name,
+                                        type: 'pdf',
+                                        images,
+                                        rawText: rawTexts,
+                                        ocrText: ocrTexts,
+                                        partIndex: smartPartIndex + idx,
+                                        pageStart: startPage,
+                                        pageEnd: endPage,
+                                        pageNums: pages.slice(),
+                                        targetLocalQids: null,
+                                        targetQidPages: null,
+                                        smartRouter: true,
+                                        smartRouterUnassigned: true,
+                                    });
+                                    logger.success("FileProcessing", `Created smart unassigned unit: ${partName} (pages=${pages.length})`);
+                                }
+                            }
+
+                            // Done for this PDF in smart router mode.
+                            return;
+                        }
+                    }
+
+                    // Fallback: sequential chunking by splitPages
+                    const splitInterval = splitPages > 0 ? splitPages : totalPages;
                     for (let i = 0; i < totalPages; i += splitInterval) {
                         if (processController.stop) throw new Error("Operation cancelled.");
 
@@ -13059,6 +13557,10 @@ ${explanationWithGlobal}
                             partIndex,
                             pageStart: startPage,
                             pageEnd: endPage,
+                            pageNums: relevantPages.map(p => p.pageNum),
+                            targetLocalQids: null,
+                            targetQidPages: null,
+                            smartRouter: false,
                         });
 
                         logger.success("FileProcessing", `Created exam unit: ${partName}`);
@@ -15162,6 +15664,13 @@ ${explanationWithGlobal}
 	                phase0ImageCropsLabel: 'Figure/Diagram Crops (optional)',
 	                phase0ImageCropsTextHtml: 'For questions with figures/diagrams: prepend image crops to <code>question_text</code> as <code>![img](data:...)</code>',
 	                phase0ImageCropsHelp: 'Default: off. Enabling can increase cost/file size.',
+	                phase0MultimodalTransportLabel: 'Phase 0: Multimodal input transport',
+	                phase0MultimodalTransportImages: 'Images + PDF text (current)',
+	                phase0MultimodalTransportPdf: 'PDF + PDF text (experimental)',
+	                phase0MultimodalTransportHelp: 'Default keeps the current image+rawText flow. “PDF + text” attaches the PDF to the model (no local rendering).',
+	                phase0SmartRouterLabel: 'Phase 0: Smart QID Router (experimental)',
+	                phase0SmartRouterTextHtml: 'Attach PDF → route <code>Page→QID</code> → extract by QID batches (never splits atomic QID blocks)',
+	                phase0SmartRouterHelp: 'Split pages is treated as “max pages per request”. If 0, it packs the entire file into 1 request (can be large).',
 	                phase1SubgroupingLabel: 'Subgroups within types (experimental)',
 	                phase1SubgroupingTextHtml: 'Within each type: group only the problems that share an identical one-sentence solving rule using <code>subgroup_tag</code> (affects renderer similarity groups)',
 	                phase1SubgroupingHelp: 'Default: off. Enabling adds extra calls after Phase 3 (final export).',
@@ -15530,6 +16039,13 @@ ${explanationWithGlobal}
 	                phase0ImageCropsLabel: '그림/도표 크롭 (옵션)',
 	                phase0ImageCropsTextHtml: '그림/도표가 있는 문제: 이미지 크롭을 <code>question_text</code> 앞에 <code>![img](data:...)</code>로 삽입',
 	                phase0ImageCropsHelp: '기본값: 사용 안 함. 활성화 시 비용/용량이 증가할 수 있습니다.',
+	                phase0MultimodalTransportLabel: '0단계: 멀티모달 입력 전송',
+	                phase0MultimodalTransportImages: '이미지 + PDF 텍스트 (기존)',
+	                phase0MultimodalTransportPdf: 'PDF + PDF 텍스트 (실험)',
+	                phase0MultimodalTransportHelp: '기본값은 기존 이미지+텍스트 방식입니다. “PDF + 텍스트”는 로컬 렌더링 없이 PDF를 모델에 첨부합니다.',
+	                phase0SmartRouterLabel: '0단계: Smart QID Router (실험)',
+	                phase0SmartRouterTextHtml: 'PDF 첨부 → <code>Page→QID</code> 라우팅 → QID 묶음 단위 추출(atomic block은 절대 자르지 않음)',
+	                phase0SmartRouterHelp: '분할 페이지 값은 “요청당 최대 페이지”로 사용됩니다. 0이면 한 파일을 1회 요청으로 묶습니다(커질 수 있음).',
 	                phase1SubgroupingLabel: '유형 내 소그룹 (실험)',
 	                phase1SubgroupingTextHtml: '유형 내에서 “한 문장으로 같은 풀이가 가능한” 문제만 <code>subgroup_tag</code>로 묶기 (렌더러 유사도 그룹에 반영)',
 	                phase1SubgroupingHelp: '기본값: 사용 안 함. 활성화 시 3단계(최종 가이드) 이후 추가 호출이 발생합니다.',
