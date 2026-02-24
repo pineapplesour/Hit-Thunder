@@ -15301,6 +15301,49 @@ ${explanationWithGlobal}
             return lines.slice(idx + 1).join('\n').trim();
         }
 
+        function __stripCoreExplanationSectionsFromMisc(markdown) {
+            const src = String(markdown ?? '');
+            if (!src.trim()) return '';
+
+            const lines = src.split(/\r?\n/);
+            const parseHeading = (line) => {
+                const m = String(line || '').match(/^\s*(#{1,6})\s+(.+?)\s*$/);
+                if (!m) return null;
+                return { level: m[1].length, text: String(m[2] || '').trim() };
+            };
+            const isCoreHeading = (headingText) => {
+                const raw = String(headingText || '').trim();
+                if (!raw) return false;
+                const t = raw.toLowerCase();
+                // Concept explanation
+                if (/\bconcept\s+explanation\b/.test(t)) return true;
+                if (raw.includes('개념') && raw.includes('설명')) return true;
+                if (raw.replace(/\s+/g, '').includes('개념설명')) return true;
+                // Standard problem explanation
+                if (/\bstandard\s+problem\s+explanation\b/.test(t)) return true;
+                if (raw.includes('표준') && raw.includes('문제') && raw.includes('해설')) return true;
+                if (raw.replace(/\s+/g, '').includes('표준문제해설')) return true;
+                return false;
+            };
+
+            const out = [];
+            for (let i = 0; i < lines.length; i++) {
+                const h = parseHeading(lines[i]);
+                if (h && isCoreHeading(h.text)) {
+                    const level = h.level;
+                    // Skip until the next heading of same or higher priority (<= level)
+                    for (i = i + 1; i < lines.length; i++) {
+                        const nx = parseHeading(lines[i]);
+                        if (nx && nx.level <= level) { i--; break; }
+                    }
+                    continue;
+                }
+                out.push(lines[i]);
+            }
+
+            return out.join('\n').trim();
+        }
+
         async function repairImportedSaveObjectTypesAndGuides(obj) {
             const cloned = __deepClone(obj);
             const extracted = __extractTypesFromImportedSave(cloned);
@@ -15415,15 +15458,16 @@ ${explanationWithGlobal}
                         others.forEach((o) => {
                             const noteTitle = String(o.title || '').trim() || canonicalTitle;
                             const detailBody = __extractDetailedExplanationBody(o.explanationMarkdown);
-                            if (!detailBody) return;
+                            const miscBody = __stripCoreExplanationSectionsFromMisc(detailBody);
+                            if (!miscBody) return;
 
                             // Avoid duplicating identical content (best-effort)
                             const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ');
-                            if (norm(mergedExp).includes(norm(detailBody))) return;
+                            if (norm(mergedExp).includes(norm(miscBody))) return;
 
                             mergedExp = (String(mergedExp || '').trimEnd() + '\n\n---\n\n' +
-                                `## (병합됨) ${noteTitle} — 상세 해설\n\n` +
-                                String(detailBody).trim()).trimEnd();
+                                `## (병합됨) ${noteTitle} — 추가 해설\n\n` +
+                                String(miscBody).trim()).trimEnd();
                         });
 
                         const rebuilt = `# ${canonicalTitle}\n\n${mergedStd}\n\n---\n\n${mergedExp}`.trim() + '\n';
