@@ -9442,9 +9442,20 @@ self.onmessage = (e) => {
             return types;
         }
 
-        function __normalizeTitleForMatch(title) {
-            return String(title || '').trim().toLowerCase().replace(/\s+/g, ' ');
-        }
+	        function __normalizeTitleForMatch(title) {
+	            return String(title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+	        }
+	
+	        function __stripTrailingParentheticalSuffix(text) {
+	            return String(text ?? '').replace(/\s*\([^)]*\)\s*$/g, '').trim();
+	        }
+	
+	        function __normalizeTypeNameForLooseMatch(typeName) {
+	            // Loose normalization used for mapping LLM outputs back to the exact canonical type names.
+	            // Ideology: "type_name" is a key; accept minor formatting differences but never create new types implicitly.
+	            const base = __stripTrailingParentheticalSuffix(String(typeName ?? ''));
+	            return String(base || '').trim().toLowerCase().replace(/\s+/g, ' ');
+	        }
 
         function parseIncrementalBasePayload(obj) {
             if (!obj || typeof obj !== 'object') throw new Error('베이스 파일이 JSON 객체가 아닙니다.');
@@ -11644,10 +11655,10 @@ ${chunkText}
         }
 
         // Helper function to de-duplicate the classification logic
-        async function applyGlobalClassification(p1_state, standard) {
-            logger.info("Phase1B", "Applying global classification to all problems...");
+	        async function applyGlobalClassification(p1_state, standard) {
+	            logger.info("Phase1B", "Applying global classification to all problems...");
 
-            const allQuestions = collectAllQuestions();
+	            const allQuestions = collectAllQuestions();
             if (allQuestions.length === 0) {
                 logger.warn("Phase1B", "No questions extracted, cannot apply classification.");
                 p1_state.status = 'completed';
@@ -11659,15 +11670,31 @@ ${chunkText}
                 return;
             }
 
-            const standardText = standard.map(t =>
-                `TYPE: ${t.type_name}\nDESCRIPTION: ${t.type_description}\nRECOGNITION: ${t.recognition_criteria}\nCONCEPTS: ${t.core_concepts}`
-            ).join('\n\n---\n\n');
+	            const standardText = standard.map(t =>
+	                `TYPE: ${t.type_name}\nDESCRIPTION: ${t.type_description}\nRECOGNITION: ${t.recognition_criteria}\nCONCEPTS: ${t.core_concepts}`
+	            ).join('\n\n---\n\n');
+	
+	            // Canonical type names (exact strings) + loose mapping
+	            const allowedTypeNames = (standard || [])
+	                .map(t => String(t?.type_name || '').trim())
+	                .filter(Boolean);
+	            const allowedTypeSet = new Set(allowedTypeNames);
+	            const allowedByLoose = new Map(); // looseKey -> canonicalTypeName | null (ambiguous)
+	            allowedTypeNames.forEach(name => {
+	                const key = __normalizeTypeNameForLooseMatch(name);
+	                if (!key) return;
+	                if (!allowedByLoose.has(key)) allowedByLoose.set(key, name);
+	                else allowedByLoose.set(key, null);
+	            });
+	            const allowedNamesText = allowedTypeNames.map(n => `- ${n}`).join('\n');
+	
+	            const seenQids = new Set((p1_state.perQuestion || []).map(x => x?.qid).filter(Boolean));
 
-            const pCfgForBatch = getPipelineConfig();
-            const batchChunkMode = pCfgForBatch?.phase1?.chunkMode || 'file_first';
-            const batchTokens = Number.isFinite(activeProcess?.chunkTokensPhase1b)
-                ? activeProcess.chunkTokensPhase1b
-                : (activeProcess.chunkTokens || DEFAULT_CHUNK_TOKENS);
+	            const pCfgForBatch = getPipelineConfig();
+	            const batchChunkMode = pCfgForBatch?.phase1?.chunkMode || 'file_first';
+	            const batchTokens = Number.isFinite(activeProcess?.chunkTokensPhase1b)
+	                ? activeProcess.chunkTokensPhase1b
+	                : (activeProcess.chunkTokens || DEFAULT_CHUNK_TOKENS);
             let batches = chunkProblemsRespectingBoundaries(allQuestions, batchTokens, batchChunkMode);
             logger.info(
                 "Phase1B",
@@ -11678,32 +11705,56 @@ ${chunkText}
                 `유형분류 시작: ${allQuestions.length}개 문제 → ${batches.length}개 배치, ${standard.length}개 유형 기준`
             );
 
-            async function processBatch(batch, workerId) {
-                const context = `ClassifyBatch-W${workerId}`;
-                const batchText = problemsToText(batch);
-                try {
-	                    const payload = {
-	                        model: getApiConfig().model,
-	                        messages: [
-	                            { role: 'system', content: __renderPromptTemplateText(currentPrompts.classifier_apply.system, { language: __getGuideLanguageFromUi() }) },
-	                            { role: 'user', content: `CLASSIFICATION STANDARD:\n\n${standardText}\n\n---\n\nPROBLEMS TO CLASSIFY:\n\n${batchText}` }
-	                        ]
-	                    };
-	                    const items = await requestAndParseDataEnvelope(payload, context, { phase: 'phase1b' });
-	                    items.forEach(it => {
-	                        const qid = parseTag(it.value, 'qid');
-	                        const type_name = parseTag(it.value, 'type_name');
-	                        const question = batch.find(q => q.qid === qid);
-	                        if (question) {
-	                            p1_state.perQuestion.push({
-	                                qid: question.qid,
-	                                pattern_name: type_name,
-	                                paperName: question.paperName
-	                            });
-	                        }
-	                    });
-	                    logger.success("Phase1B", `Classified batch of ${batch.length} problems.`);
-                } catch (e) {
+	            async function processBatch(batch, workerId) {
+	                const context = `ClassifyBatch-W${workerId}`;
+	                const batchText = problemsToText(batch);
+	                try {
+		                    const payload = {
+		                        model: getApiConfig().model,
+		                        messages: [
+		                            { role: 'system', content: __renderPromptTemplateText(currentPrompts.classifier_apply.system, { language: __getGuideLanguageFromUi() }) },
+		                            {
+		                                role: 'user',
+		                                content:
+		                                    `CLASSIFICATION STANDARD:\n\n${standardText}\n\n` +
+		                                    `ALLOWED TYPE NAMES (must match EXACTLY, including parentheses):\n${allowedNamesText}\n\n` +
+		                                    `---\n\nPROBLEMS TO CLASSIFY:\n\n${batchText}`
+		                            }
+		                        ]
+		                    };
+		                    const items = await requestAndParseDataEnvelope(payload, context, { phase: 'phase1b' });
+		                    items.forEach(it => {
+		                        const qid = parseTag(it.value, 'qid');
+		                        const type_name = parseTag(it.value, 'type_name');
+		                        const question = batch.find(q => q.qid === qid);
+		                        if (question) {
+		                            if (seenQids.has(question.qid)) return;
+		                            const rawType = String(type_name || '').trim();
+		                            let canonicalType = '';
+		                            if (rawType && allowedTypeSet.has(rawType)) canonicalType = rawType;
+		                            else if (rawType) {
+		                                const key = __normalizeTypeNameForLooseMatch(rawType);
+		                                const mapped = key ? allowedByLoose.get(key) : null;
+		                                if (mapped && allowedTypeSet.has(mapped)) canonicalType = mapped;
+		                            }
+		                            if (!canonicalType) {
+		                                logger.warn(
+		                                    context,
+		                                    `Rejected unknown type_name: qid="${String(qid || '').trim()}" type_name="${rawType}". ` +
+		                                    `Will treat as unclassified for retry.`
+		                                );
+		                                return;
+		                            }
+		                            p1_state.perQuestion.push({
+		                                qid: question.qid,
+		                                pattern_name: canonicalType,
+		                                paperName: question.paperName
+		                            });
+		                            seenQids.add(question.qid);
+		                        }
+		                    });
+		                    logger.success("Phase1B", `Classified batch of ${batch.length} problems.`);
+	                } catch (e) {
                     logger.error("Phase1B", `Batch classification failed: ${e.message}`);
                     throw e;
                 }
@@ -14727,21 +14778,31 @@ ${explanationWithGlobal}
 	            const runStatus = st.run.status ? `<div class="muted" style="margin-top:6px;">${escapeHtmlForInnerHTML(st.run.status)}</div>` : '';
 	            const runProgress = st.run.progress ? `<div class="muted" style="margin-top:4px; font-family:monospace; font-size:12px; white-space:pre-wrap;">${escapeHtmlForInnerHTML(st.run.progress)}</div>` : '';
 	
-	            return `
-	              <div class="ui-panel">
-	                <h3 style="color: var(--accent); margin-top:0;">${escapeHtmlForInnerHTML(__tGui('tabPostprocessSave'))}</h3>
-	                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+		            return `
+		              <div class="ui-panel">
+		                <h3 style="color: var(--accent); margin-top:0;">${escapeHtmlForInnerHTML(__tGui('tabPostprocessSave'))}</h3>
+		                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
 	                  <button class="ui-btn" id="postprocess-load-btn">${escapeHtmlForInnerHTML(__tGui('ppLoadSaveButton'))}</button>
 	                  <button class="ui-btn" id="postprocess-reset-btn" ${!st.original || st.run.running ? 'disabled' : ''}>${escapeHtmlForInnerHTML(__tGui('ppResetWorkingButton'))}</button>
 	                  <button class="ui-btn" id="postprocess-download-btn" ${!st.working ? 'disabled' : ''}>${escapeHtmlForInnerHTML(__tGui('ppDownloadWorkingButton'))}</button>
 	                  <button class="ui-btn" id="postprocess-stop-btn" ${!st.run.running ? 'disabled' : ''}>${escapeHtmlForInnerHTML(__tGui('ppStopButton'))}</button>
 	                  <span class="muted" style="font-size:12px;">${escapeHtmlForInnerHTML(st.fileName ? (__tGuiFmt('ppLoadedFileFmt', { name: st.fileName })) : __tGui('ppNoFileLoaded'))}</span>
-	                </div>
-	                ${summaryHtml}
-	
-	                <div class="ui-panel" style="margin-top:0.75rem;">
-	                  <h4 style="margin:0 0 6px 0;">${escapeHtmlForInnerHTML(__tGui('ppSubgroupSectionTitle'))}</h4>
-	                  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+		                </div>
+		                ${summaryHtml}
+		
+		                <div class="ui-panel" style="margin-top:0.75rem;">
+		                  <h4 style="margin:0 0 6px 0;">${escapeHtmlForInnerHTML(__tGui('ppRepairSectionTitle'))}</h4>
+		                  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+		                    <button class="ui-btn" id="postprocess-repair-types-btn" ${disabled ? 'disabled' : ''}>${escapeHtmlForInnerHTML(__tGui('ppRepairTypesButton'))}</button>
+		                  </div>
+		                  <div class="muted" style="margin-top:6px; font-size:12px; line-height:1.4;">
+		                    ${escapeHtmlForInnerHTML(__tGui('ppRepairHelpText'))}
+		                  </div>
+		                </div>
+		
+		                <div class="ui-panel" style="margin-top:0.75rem;">
+		                  <h4 style="margin:0 0 6px 0;">${escapeHtmlForInnerHTML(__tGui('ppSubgroupSectionTitle'))}</h4>
+		                  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
 	                    <label class="muted" style="font-size:12px;">${escapeHtmlForInnerHTML(__tGui('ppChunkTokensLabel'))}
 	                      <input class="ui-input" id="pp-subgroup-chunk-tokens" type="number" min="1000" max="400000"
 	                        value="${escapeHtmlForInnerHTML(String(s.subgroupChunkTokens || DEFAULT_CHUNK_TOKENS))}"
@@ -14965,6 +15026,21 @@ ${explanationWithGlobal}
 	                }
 	            };
 	
+	            if (id === 'postprocess-repair-types-btn') {
+	                await runWrap(__tGui('ppRunningRepair'), async () => {
+	                    const res = await repairImportedSaveObjectTypesAndGuides(st.working);
+	                    st.working = res.updated;
+	                    st.summary = __summarizeImportedSaveForPostprocess(st.working);
+	                    st.run.status = __tGuiFmt('ppDoneRepairFmt', {
+	                        tb: res.typesBefore || 0,
+	                        ta: res.typesAfter || 0,
+	                        gb: res.guideSegmentsBefore || 0,
+	                        ga: res.guideSegmentsAfter || 0
+	                    });
+	                    logger.success('PostprocessRepair', `Repaired types/guides. types ${res.typesBefore}→${res.typesAfter}, guide ${res.guideSegmentsBefore}→${res.guideSegmentsAfter}`);
+	                });
+	                return;
+	            }
 	            if (id === 'postprocess-run-subgroup-btn') {
 	                await runWrap(__tGui('ppRunningSubgroup'), async () => {
 	                    const tok = st.settings?.subgroupChunkTokens;
@@ -15029,6 +15105,274 @@ ${explanationWithGlobal}
                 return { kind: 'types', root: obj, types: obj.types };
             }
             throw new Error('Unsupported file. Expected fmm_export bundle (__fmm_bundle__==1) or {types:{...}} JSON.');
+        }
+
+        function __hasTrailingParentheticalSuffix(text) {
+            const s = String(text ?? '').trim();
+            if (!s) return false;
+            return __stripTrailingParentheticalSuffix(s) !== s;
+        }
+
+        function __pickCanonicalTitleForLooseGroup(titles) {
+            const list = (Array.isArray(titles) ? titles : []).map(t => String(t ?? '').trim()).filter(Boolean);
+            if (!list.length) return '';
+            // Prefer the title that includes a trailing parenthetical suffix (usually KR translation),
+            // then the longer title, then stable lexicographic order.
+            return list.slice().sort((a, b) => {
+                const ap = __hasTrailingParentheticalSuffix(a) ? 1 : 0;
+                const bp = __hasTrailingParentheticalSuffix(b) ? 1 : 0;
+                if (ap !== bp) return bp - ap;
+                if (a.length !== b.length) return b.length - a.length;
+                return a.localeCompare(b);
+            })[0];
+        }
+
+        function __mergeProblemRecordInto(target, src) {
+            if (!target || typeof target !== 'object') return target;
+            if (!src || typeof src !== 'object') return target;
+
+            const pickLonger = (a, b) => {
+                const sa = String(a ?? '').trim();
+                const sb = String(b ?? '').trim();
+                if (!sa) return sb;
+                if (!sb) return sa;
+                return (sb.length > sa.length) ? sb : sa;
+            };
+
+            // Prefer keeping an existing non-empty value; if both exist, keep the longer for these fields.
+            const fieldsLonger = ['question_text', 'questionText', 'question', 'answer_choices', 'answerChoices', 'choices', 'official_explanation', 'officialExplanation'];
+            fieldsLonger.forEach((k) => {
+                if (!(k in src)) return;
+                if (!(k in target)) { target[k] = src[k]; return; }
+                const merged = pickLonger(target[k], src[k]);
+                if (String(merged ?? '') !== String(target[k] ?? '')) target[k] = merged;
+            });
+
+            // For answers: keep existing if present, else take src.
+            const ansKeys = ['official_answer', 'officialAnswer'];
+            ansKeys.forEach((k) => {
+                if (!(k in src)) return;
+                const cur = String(target?.[k] ?? '').trim();
+                const next = String(src?.[k] ?? '').trim();
+                if (!cur && next) target[k] = src[k];
+            });
+
+            // Subgroup tags/rules (if present)
+            const sgKeys = ['subgroup_tag', 'subgroupTag', 'subgroup_rule', 'subgroupRule'];
+            sgKeys.forEach((k) => {
+                if (!(k in src)) return;
+                const cur = String(target?.[k] ?? '').trim();
+                const next = String(src?.[k] ?? '').trim();
+                if (!cur && next) target[k] = src[k];
+            });
+
+            // Copy over any other fields that are missing on target.
+            Object.keys(src).forEach((k) => {
+                if (k in target) return;
+                target[k] = __deepClone(src[k]);
+            });
+
+            return target;
+        }
+
+        function __extractTypeTitleFromGuideSegment(segment, fallbackTitle = '') {
+            const seg = String(segment ?? '');
+            if (!seg) return String(fallbackTitle || '');
+            const stdMatch = seg.match(/^\s*##\s*Standard Problem/m);
+            const posStdStart = stdMatch ? stdMatch.index : seg.indexOf('## Standard Problem');
+            const before = seg.slice(0, Math.max(0, posStdStart >= 0 ? posStdStart : seg.length));
+            const h1Matches = [...before.matchAll(/^\s*#\s+(.+?)\s*$/gm)];
+            if (h1Matches.length) return String(h1Matches[h1Matches.length - 1][1] || '').trim();
+            const m = seg.match(/^\s*#\s+(.+?)\s*$/m);
+            if (m) return String(m[1] || '').trim();
+            return String(fallbackTitle || '').trim();
+        }
+
+        function __replaceGuideSegmentTypeTitle(segment, newTitle) {
+            const seg = String(segment ?? '');
+            const title = String(newTitle ?? '').trim();
+            if (!seg || !title) return seg;
+            const stdMatch = seg.match(/^\s*##\s*Standard Problem/m);
+            const posStdStart = stdMatch ? stdMatch.index : seg.indexOf('## Standard Problem');
+            const before = seg.slice(0, Math.max(0, posStdStart >= 0 ? posStdStart : seg.length));
+            const h1Matches = [...before.matchAll(/^\s*#\s+(.+?)\s*$/gm)];
+            const m = h1Matches.length ? h1Matches[h1Matches.length - 1] : null;
+            if (!m || typeof m.index !== 'number') return seg;
+            const full = String(m[0] || '');
+            const prefix = (full.match(/^(\s*#\s+)/) || [null, '# '])[1];
+            const start = m.index;
+            return seg.slice(0, start) + prefix + title + seg.slice(start + full.length);
+        }
+
+        function __parseGuideSegmentToStandardAndExplanation(segment) {
+            const seg = String(segment ?? '');
+            if (!seg) return { standardMarkdown: '', explanationMarkdown: '' };
+            const stdMatch = seg.match(/(^\s*##\s*Standard Problem[\s\S]*?)^\s*---\s*$/m);
+            if (stdMatch) {
+                const standardMarkdown = String(stdMatch[1] || '').trim();
+                const explanationMarkdown = seg.slice(stdMatch.index + stdMatch[0].length).trim();
+                return { standardMarkdown, explanationMarkdown };
+            }
+            const stdFallback = seg.match(/(^\s*##\s*Standard Problem[\s\S]*)$/m);
+            if (stdFallback) return { standardMarkdown: String(stdFallback[1] || '').trim(), explanationMarkdown: '' };
+            return { standardMarkdown: '', explanationMarkdown: '' };
+        }
+
+        async function repairImportedSaveObjectTypesAndGuides(obj) {
+            const cloned = __deepClone(obj);
+            const extracted = __extractTypesFromImportedSave(cloned);
+            const types = extracted.types || {};
+            const oldTypeNames = Object.keys(types);
+            if (!oldTypeNames.length) throw new Error('No types found in save file.');
+
+            // 1) Repair types: merge keys by loose normalization (strip trailing "(...)" and whitespace)
+            const canonicalByLoose = new Map(); // looseKey -> canonical title
+            const canonicalOrder = []; // insertion order
+            const titlesByLoose = new Map(); // looseKey -> [titles...]
+            oldTypeNames.forEach((name) => {
+                const title = String(name ?? '').trim();
+                if (!title) return;
+                const key = __normalizeTypeNameForLooseMatch(title);
+                if (!key) return;
+                if (!titlesByLoose.has(key)) titlesByLoose.set(key, []);
+                titlesByLoose.get(key).push(title);
+            });
+            titlesByLoose.forEach((titles, key) => {
+                canonicalByLoose.set(key, __pickCanonicalTitleForLooseGroup(titles));
+            });
+
+            const newTypes = {};
+            const byCanonicalQid = new Map(); // canonicalTitle -> Map(qid->problemRef)
+
+            oldTypeNames.forEach((oldTitle) => {
+                const t = String(oldTitle ?? '').trim();
+                if (!t) return;
+                const key = __normalizeTypeNameForLooseMatch(t);
+                const canonical = (key && canonicalByLoose.get(key)) ? canonicalByLoose.get(key) : t;
+                if (!(canonical in newTypes)) {
+                    newTypes[canonical] = [];
+                    canonicalOrder.push(canonical);
+                    byCanonicalQid.set(canonical, new Map());
+                }
+                const listRaw = types[oldTitle];
+                const list = Array.isArray(listRaw) ? listRaw : [];
+                const qidMap = byCanonicalQid.get(canonical);
+                list.forEach((p) => {
+                    const qid = String(p?.qid || '').trim();
+                    if (!qid) return;
+                    if (!qidMap.has(qid)) {
+                        newTypes[canonical].push(p);
+                        qidMap.set(qid, p);
+                        return;
+                    }
+                    // Merge duplicate qid records
+                    __mergeProblemRecordInto(qidMap.get(qid), p);
+                });
+            });
+
+            // Write back types (bundle or plain)
+            if (extracted.kind === 'bundle') {
+                try { extracted.root.items.fmm_problems_json.value.types = newTypes; } catch { }
+            } else {
+                try { extracted.root.types = newTypes; } catch { }
+            }
+
+            // 2) Repair fmm_source (guide) if present: merge duplicate type segments by the same loose key
+            let guideSegmentsBefore = 0;
+            let guideSegmentsAfter = 0;
+            if (extracted.kind === 'bundle') {
+                const rawGuide = extracted?.root?.items?.fmm_source?.value;
+                const guideText = (typeof rawGuide === 'string') ? rawGuide : '';
+                if (guideText && guideText.trim()) {
+                    const segments = guideText.split(/\n={8,}\n/g).map(s => String(s || '').trim()).filter(Boolean);
+                    guideSegmentsBefore = segments.length;
+
+                    const segmentsByLoose = new Map(); // looseKey -> [{ title, segment, standard, explanation }]
+                    segments.forEach((seg, idx) => {
+                        const title = __extractTypeTitleFromGuideSegment(seg, `유형 ${idx + 1}`);
+                        const key = __normalizeTypeNameForLooseMatch(title);
+                        if (!key) return;
+                        const parsed = __parseGuideSegmentToStandardAndExplanation(seg);
+                        if (!segmentsByLoose.has(key)) segmentsByLoose.set(key, []);
+                        segmentsByLoose.get(key).push({
+                            title,
+                            segment: seg,
+                            standardMarkdown: parsed.standardMarkdown,
+                            explanationMarkdown: parsed.explanationMarkdown,
+                        });
+                    });
+
+                    const mergedByLoose = new Map();
+                    segmentsByLoose.forEach((list, key) => {
+                        const canonicalTitle = canonicalByLoose.get(key) || __pickCanonicalTitleForLooseGroup(list.map(x => x.title));
+                        // pick primary segment: prefer exact canonical title, else prefer parenthetical, else first
+                        const pickScore = (x) => {
+                            const exact = (__normalizeTitleForMatch(x.title) === __normalizeTitleForMatch(canonicalTitle)) ? 10 : 0;
+                            const paren = __hasTrailingParentheticalSuffix(x.title) ? 1 : 0;
+                            return exact * 100 + paren * 10 + (String(x.segment || '').length || 0);
+                        };
+                        const primary = list.slice().sort((a, b) => pickScore(b) - pickScore(a))[0];
+                        let merged = __replaceGuideSegmentTypeTitle(primary.segment, canonicalTitle).trimEnd();
+
+                        const others = list.filter(x => x !== primary);
+                        others.forEach((o) => {
+                            const extra = String(o.segment || '').trim();
+                            if (!extra) return;
+                            // Avoid duplicating identical content
+                            if (extra === String(primary.segment || '').trim()) return;
+
+                            const noteTitle = String(o.title || '').trim() || canonicalTitle;
+                            const parts = [];
+                            parts.push('---');
+                            parts.push('');
+                            parts.push(`## (병합됨) ${noteTitle}`);
+                            parts.push('');
+                            if (o.standardMarkdown) {
+                                parts.push('### Standard Problem (merged)');
+                                parts.push('');
+                                parts.push(String(o.standardMarkdown).trim());
+                                parts.push('');
+                            }
+                            if (o.explanationMarkdown) {
+                                parts.push('### Guide (merged)');
+                                parts.push('');
+                                parts.push(String(o.explanationMarkdown).trim());
+                                parts.push('');
+                            } else {
+                                parts.push(String(extra).trim());
+                                parts.push('');
+                            }
+                            merged = (merged + '\n\n' + parts.join('\n')).trimEnd();
+                        });
+
+                        mergedByLoose.set(key, merged.trim());
+                    });
+
+                    const rebuiltSegments = [];
+                    const usedLoose = new Set();
+                    canonicalOrder.forEach((canonicalTitle) => {
+                        const key = __normalizeTypeNameForLooseMatch(canonicalTitle);
+                        if (!key || usedLoose.has(key)) return;
+                        const seg = mergedByLoose.get(key);
+                        if (seg) rebuiltSegments.push(seg);
+                        usedLoose.add(key);
+                    });
+                    // If guide had segments not present in types, append them at the end (best effort)
+                    mergedByLoose.forEach((seg, key) => {
+                        if (usedLoose.has(key)) return;
+                        rebuiltSegments.push(seg);
+                        usedLoose.add(key);
+                    });
+
+                    guideSegmentsAfter = rebuiltSegments.length;
+                    const rebuiltGuide = rebuiltSegments.join('\n\n========================================\n\n').trim() + '\n';
+                    try { extracted.root.items.fmm_source.value = rebuiltGuide; } catch { }
+                }
+            }
+
+            const typesBefore = oldTypeNames.length;
+            const typesAfter = Object.keys(newTypes).length;
+            return { updated: cloned, typesBefore, typesAfter, guideSegmentsBefore, guideSegmentsAfter };
         }
 
         async function subgroupifyImportedSaveObject(obj, { chunkTokens } = {}) {
@@ -16240,6 +16584,9 @@ ${explanationWithGlobal}
 	                ppStopButton: 'Stop',
 	                ppLoadedFileFmt: 'Loaded: {name}',
 	                ppNoFileLoaded: 'No file loaded.',
+	                ppRepairSectionTitle: 'Repair (types / guide)',
+	                ppRepairTypesButton: 'Repair types + guide',
+	                ppRepairHelpText: 'Merges duplicate type keys that differ only by a trailing "(...)" suffix, and also merges duplicate guide segments in fmm_source. No LLM calls.',
 	                ppSubgroupSectionTitle: 'Subgroupify (subgroup_tag)',
 	                ppChunkTokensLabel: 'Chunk tokens (approx.)',
 	                ppRunSubgroupButton: 'Run subgroupify',
@@ -16255,6 +16602,8 @@ ${explanationWithGlobal}
 	                ppRunBothButton: 'Run both',
 	                ppFillHelpText: 'Fills official_answer / official_explanation. Also prepends an LLM provenance banner to official_explanation.',
 	                ppStopRequested: 'Stop requested.',
+	                ppRunningRepair: 'Repairing types/guide...',
+	                ppDoneRepairFmt: 'Done. types {tb}→{ta}, guide {gb}→{ga}.',
 	                ppRunningSubgroup: 'Running subgroupify...',
 	                ppDoneSubgroupFmt: 'Done. Assigned {n} problems.',
 	                ppRunningFill: 'Filling answers/explanations...',
@@ -16635,6 +16984,9 @@ ${explanationWithGlobal}
 	                ppStopButton: '중지',
 	                ppLoadedFileFmt: '불러옴: {name}',
 	                ppNoFileLoaded: '불러온 파일 없음.',
+	                ppRepairSectionTitle: '수리(유형/가이드)',
+	                ppRepairTypesButton: '유형+가이드 수리',
+	                ppRepairHelpText: '유형명이 끝의 "(...)"만 다른 중복을 병합하고, fmm_source(유형 가이드)도 같은 기준으로 중복 세그먼트를 병합합니다. LLM 호출 없음.',
 	                ppSubgroupSectionTitle: '소그룹 생성 (subgroup_tag)',
 	                ppChunkTokensLabel: '배치 토큰(대략)',
 	                ppRunSubgroupButton: '소그룹 생성 실행',
@@ -16650,6 +17002,8 @@ ${explanationWithGlobal}
 	                ppRunBothButton: '둘다 실행',
 	                ppFillHelpText: 'official_answer / official_explanation 채우기. LLM 생성 여부는 official_explanation 상단 배너로 표시됩니다.',
 	                ppStopRequested: '중지 요청됨.',
+	                ppRunningRepair: '유형/가이드 수리 중...',
+	                ppDoneRepairFmt: '완료. 유형 {tb}→{ta}, 가이드 {gb}→{ga}.',
 	                ppRunningSubgroup: '소그룹 생성 중...',
 	                ppDoneSubgroupFmt: '완료. {n}문제에 subgroup_tag를 넣었습니다.',
 	                ppRunningFill: '정답/해설 채우는 중...',
