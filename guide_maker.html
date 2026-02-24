@@ -13079,12 +13079,13 @@ ${explanationWithGlobal}
                 };
             }
 
-            try {
-                renderActiveProcess();
+	            try {
+	                renderActiveProcess();
 
-                const cfg = getPipelineConfig(activeProcess);
-                const run = cfg?.runPhases || DEFAULT_PIPELINE_CONFIG.runPhases;
-                const fullRun = !!(run.phase0 && run.phase1 && run.phase2 && run.phase3);
+	                const cfg = getPipelineConfig(activeProcess);
+	                const run = cfg?.runPhases || DEFAULT_PIPELINE_CONFIG.runPhases;
+	                const runStartFrom = __normalizeStartFrom(cfg?.runPlan?.startFrom);
+	                const fullRun = !!(run.phase0 && run.phase1 && run.phase2 && run.phase3);
 
                 // --- PHASE 0: EXTRACTION ---
                 if (run.phase0) {
@@ -13156,15 +13157,25 @@ ${explanationWithGlobal}
                     }
                 }
 
-                // --- PHASE 2: MODULE GENERATION ---
-                if (run.phase2) {
-                    const hasPendingModules = (activeProcess.phase2_modules || []).some(m => m.status === 'pending');
-                    if (hasPendingModules) {
-                        await generatePhase2Modules();
-                    } else {
-                        logger.info("Workflow", "Phase 2: pending 모듈이 없어 건너뜁니다.");
-                    }
-                    if (processController.stop) throw new Error("Operation cancelled.");
+	                // --- PHASE 2: MODULE GENERATION ---
+	                if (run.phase2) {
+	                    const hasPendingModules = (activeProcess.phase2_modules || []).some(m => m.status === 'pending');
+	                    if (hasPendingModules) {
+	                        // If we're going to generate/extend modules in this run, clear any existing final manual
+	                        // so the UI doesn't show a stale "final" result while work remains.
+	                        if (run.phase3) {
+	                            try {
+	                                activeProcess.phase3_finalManual = activeProcess.phase3_finalManual || {};
+	                                activeProcess.phase3_finalManual.status = 'pending';
+	                                activeProcess.phase3_finalManual.content = null;
+	                                activeProcess.phase3_finalManual.error = null;
+	                            } catch { }
+	                        }
+	                        await generatePhase2Modules();
+	                    } else {
+	                        logger.info("Workflow", "Phase 2: pending 모듈이 없어 건너뜁니다.");
+	                    }
+	                    if (processController.stop) throw new Error("Operation cancelled.");
 
                     const completedModules = (activeProcess.phase2_modules || []).filter(m => m.status === 'completed');
                     if (completedModules.length === 0) {
@@ -13177,8 +13188,18 @@ ${explanationWithGlobal}
 
 	                // --- PHASE 3: FINAL COLLATION ---
 	                if (run.phase3) {
+	                    const remainingModules = Array.isArray(activeProcess.phase2_modules) &&
+	                        activeProcess.phase2_modules.some(m => {
+	                            const st = String(m?.status || '').toLowerCase();
+	                            return st === 'pending' || st === 'processing' || st === 'in_progress' || st === 'running';
+	                        });
+	                    const forcePhase3 = runStartFrom === 'phase3';
 	                    if (activeProcess.phase3_finalManual?.status === 'pending') {
-	                        buildFinalManual();
+	                        if (remainingModules && !forcePhase3) {
+	                            logger.info("Workflow", "Phase 3 skipped: pending modules remain. (Finish Phase 2 first, or use '3단계만 다시')");
+	                        } else {
+	                            buildFinalManual();
+	                        }
 	                    }
 	                    // --- OPTIONAL: export postprocess (postprocess-equivalent subgroupify / fill) ---
 	                    if (!processController.stop) {
@@ -13190,23 +13211,27 @@ ${explanationWithGlobal}
 	                    logger.info("Workflow", "3단계가 실행 계획에서 제외되었습니다.");
 	                }
 
-                if (!processController.stop) {
-                    const pendingModulesRemain = Array.isArray(activeProcess.phase2_modules) && activeProcess.phase2_modules.some(m => m.status === 'pending');
-                    if (fullRun && !pendingModulesRemain) {
-                        activeProcess.status = 'completed';
-                        logger.success("Workflow", "완료!");
-                        updateStatus(__tGui('statusTitleCompleted'), __tGui('statusCompletedSubtext'));
-                    } else {
-                        activeProcess.status = 'paused';
-                        logger.success("Workflow", "실행 계획이 종료되었습니다. (재개 가능)");
-                        updateStatus(
-                            __tGui('statusTitlePaused'),
-                            pendingModulesRemain
-                                ? __tGui('statusPausedPendingModulesSubtext')
-                                : __tGui('statusPausedStopAfterSubtext')
-                        );
-                    }
-                }
+	                if (!processController.stop) {
+	                    const remainingModules = Array.isArray(activeProcess.phase2_modules) &&
+	                        activeProcess.phase2_modules.some(m => {
+	                            const st = String(m?.status || '').toLowerCase();
+	                            return st === 'pending' || st === 'processing' || st === 'in_progress' || st === 'running';
+	                        });
+	                    if (fullRun && !remainingModules) {
+	                        activeProcess.status = 'completed';
+	                        logger.success("Workflow", "완료!");
+	                        updateStatus(__tGui('statusTitleCompleted'), __tGui('statusCompletedSubtext'));
+	                    } else {
+	                        activeProcess.status = 'paused';
+	                        logger.success("Workflow", "실행 계획이 종료되었습니다. (재개 가능)");
+	                        updateStatus(
+	                            __tGui('statusTitlePaused'),
+	                            remainingModules
+	                                ? __tGui('statusPausedPendingModulesSubtext')
+	                                : __tGui('statusPausedStopAfterSubtext')
+	                        );
+	                    }
+	                }
 
             } catch (error) {
                 if (error.message.includes("cancelled")) {
