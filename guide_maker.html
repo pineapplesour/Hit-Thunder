@@ -14578,34 +14578,46 @@ ${explanationWithGlobal}
         }
 
 
-	        function renderPhase3Final() {
-            const g = activeProcess.phase3_finalManual || {};
-            const content = g.content ||
-                (g.status === 'pending'
-                    ? __tGui('finalGuideNotReady')
-                    : __tGui('finalGuideBuilding'));
+		        function renderPhase3Final() {
+	            const g = activeProcess.phase3_finalManual || {};
+	            const mods = Array.isArray(activeProcess?.phase2_modules) ? activeProcess.phase2_modules : [];
+	            const hasCompletedModules = mods.some(m => (String(m?.status || '').toLowerCase() === 'completed'));
+	            const hasRemainingModules = mods.some(m => {
+	                const st = String(m?.status || '').toLowerCase();
+	                return st === 'pending' || st === 'processing' || st === 'in_progress' || st === 'running';
+	            });
+	            const content = g.content ||
+	                (g.status === 'pending'
+	                    ? __tGui('finalGuideNotReady')
+	                    : __tGui('finalGuideBuilding'));
 
-	            return `
-		              <div class="ui-panel">
-	                  <h3 style="color: var(--accent);">
-	                    ${escapeHtmlForInnerHTML(__tGui('finalGuideTitle'))}
-	                    <span class="status-badge status-${g.status}">${g.status}</span>
-	                  </h3>
-	                  ${g.error ? `<p style="color: var(--error-color);">${escapeHtmlForInnerHTML(g.error)}</p>` : ''}
-                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top: 0.25rem;">
-                      <button class="ui-btn" id="download-renderer-save-btn"
-                        style="border-color: var(--secondary-accent); background: rgba(56, 189, 248, 0.10);"
-                        ${!g.content ? 'disabled' : ''}>
-                        ${escapeHtmlForInnerHTML(__tGui('finalGuideDownloadRendererSaveButton'))}
-                      </button>
-                    </div>
-		                  <textarea class="ui-input" rows="20" readonly>${content}</textarea>
-		                  <button class="ui-btn" id="download-btn" style="margin-top: 1rem;" ${!g.content ? 'disabled' : ''}>
-		                      ${escapeHtmlForInnerHTML(__tGui('finalGuideDownloadTxtButton'))}
-		                  </button>
-		              </div>
-			          `;
-	        }
+		            return `
+			              <div class="ui-panel">
+		                  <h3 style="color: var(--accent);">
+		                    ${escapeHtmlForInnerHTML(__tGui('finalGuideTitle'))}
+		                    <span class="status-badge status-${g.status}">${g.status}</span>
+		                  </h3>
+		                  ${g.error ? `<p style="color: var(--error-color);">${escapeHtmlForInnerHTML(g.error)}</p>` : ''}
+	                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top: 0.25rem;">
+	                      <button class="ui-btn" id="refresh-final-guide-btn"
+	                        style="border-color: var(--accent); background: rgba(56, 189, 248, 0.08);"
+	                        ${!hasCompletedModules ? 'disabled' : ''}>
+	                        ${escapeHtmlForInnerHTML(__tGui('finalGuideRefreshButton'))}${hasRemainingModules ? ' *' : ''}
+	                      </button>
+	                      <button class="ui-btn" id="download-renderer-save-btn"
+	                        style="border-color: var(--secondary-accent); background: rgba(56, 189, 248, 0.10);"
+	                        ${!g.content ? 'disabled' : ''}>
+	                        ${escapeHtmlForInnerHTML(__tGui('finalGuideDownloadRendererSaveButton'))}
+	                      </button>
+	                    </div>
+	                    ${hasRemainingModules ? `<div style="margin-top:4px; font-size:11px; color:var(--text-3);">${escapeHtmlForInnerHTML(__tGui('finalGuideRefreshPartialHint'))}</div>` : ''}
+			                  <textarea class="ui-input" rows="20" readonly>${content}</textarea>
+			                  <button class="ui-btn" id="download-btn" style="margin-top: 1rem;" ${!g.content ? 'disabled' : ''}>
+			                      ${escapeHtmlForInnerHTML(__tGui('finalGuideDownloadTxtButton'))}
+			                  </button>
+			              </div>
+				          `;
+		        }
 
 	        // ----- SAVE POSTPROCESSING (import a renderer save and patch it) -----
 	        const POSTPROCESS_SAVE_SETTINGS_KEY = 'mastery_manual_postprocess_save_settings_v1';
@@ -15647,9 +15659,9 @@ ${explanationWithGlobal}
             return { types, missingQids, phase1: p1 };
         }
 
-        // Download renderer import save (fmm_export.json-compatible)
-        document.body.addEventListener('click', e => {
-            if (e.target && e.target.id === 'download-renderer-save-btn') {
+	        // Download renderer import save (fmm_export.json-compatible)
+	        document.body.addEventListener('click', e => {
+	            if (e.target && e.target.id === 'download-renderer-save-btn') {
                 try {
                     const guide = String(activeProcess?.phase3_finalManual?.content || '').trim();
                     if (!guide) { alert(__tGui('exportNoFinalGuideAlert')); return; }
@@ -15674,12 +15686,43 @@ ${explanationWithGlobal}
                     logger.error('Export', `Failed to export renderer save: ${err.message}`);
                     alert(__tGui('exportFailedCheckLogsAlert'));
                 }
-            }
-        });
+	            }
+	        });
 
-        // Download types + original problems bundle
-        document.body.addEventListener('click', e => {
-            if (e.target && e.target.id === 'download-type-bundle-btn') {
+	        // Refresh/rebuild final manual (Phase 3) from current completed modules
+	        document.body.addEventListener('click', e => {
+	            const btn = (e?.target && typeof e.target.closest === 'function') ? e.target.closest('button') : null;
+	            if (!btn || btn.id !== 'refresh-final-guide-btn') return;
+	            try {
+	                const mods = Array.isArray(activeProcess?.phase2_modules) ? activeProcess.phase2_modules : [];
+	                const completed = mods.filter(m => (String(m?.status || '').toLowerCase() === 'completed'));
+	                if (!completed.length) {
+	                    alert(__tGui('finalGuideRefreshNoCompletedAlert'));
+	                    return;
+	                }
+	                const remaining = mods.some(m => {
+	                    const st = String(m?.status || '').toLowerCase();
+	                    return st === 'pending' || st === 'processing' || st === 'in_progress' || st === 'running';
+	                });
+	                if (remaining) {
+	                    const ok = confirm(__tGui('finalGuideRefreshConfirmPending'));
+	                    if (!ok) return;
+	                }
+	                activeProcess.phase3_finalManual = activeProcess.phase3_finalManual || {};
+	                activeProcess.phase3_finalManual.status = 'pending';
+	                activeProcess.phase3_finalManual.content = null;
+	                activeProcess.phase3_finalManual.error = null;
+	                renderActiveProcess();
+	                buildFinalManual();
+	            } catch (err) {
+	                logger.error('Phase3', `Final refresh failed: ${err?.message || err}`);
+	                alert(__tGui('finalGuideRefreshFailedAlert'));
+	            }
+	        });
+
+	        // Download types + original problems bundle
+	        document.body.addEventListener('click', e => {
+	            if (e.target && e.target.id === 'download-type-bundle-btn') {
                 try {
                     const { types, missingQids, phase1: p1 } = __buildTypeProblemsBundleForExport();
                     const globalTypeNameMap = p1?.globalTypeNameMap;
@@ -16170,11 +16213,16 @@ ${explanationWithGlobal}
 	                fullCaptureStatusEnabledFmt: 'enabled • records {n} • pending {p}',
 	                fullCaptureStatusErrorFmt: 'error: {error}',
 	
-	                finalGuideTitle: 'Final guide',
-	                finalGuideNotReady: 'Not completed yet.',
-	                finalGuideBuilding: 'Building final guide...',
-	                finalGuideDownloadRendererSaveButton: 'Download renderer save (.json)',
-	                finalGuideDownloadTxtButton: 'Download (.txt)',
+		                finalGuideTitle: 'Final guide',
+		                finalGuideNotReady: 'Not completed yet.',
+		                finalGuideBuilding: 'Building final guide...',
+		                finalGuideRefreshButton: 'Refresh final merge',
+		                finalGuideRefreshPartialHint: '* Pending modules remain. Refresh will build a partial merge from completed modules only.',
+		                finalGuideRefreshConfirmPending: 'Pending modules remain. Build a partial final merge from completed modules only?',
+		                finalGuideRefreshNoCompletedAlert: 'No completed modules yet. Finish Phase 2 first.',
+		                finalGuideRefreshFailedAlert: 'Refresh failed. Check the logs.',
+		                finalGuideDownloadRendererSaveButton: 'Download renderer save (.json)',
+		                finalGuideDownloadTxtButton: 'Download (.txt)',
 	
 	                exportNoTypeResultsError: 'No type classification results yet. (Run Phase 1 first.)',
 	                exportNoFinalGuideAlert: 'No final guide yet. (Complete Phase 3 first.)',
@@ -16560,11 +16608,16 @@ ${explanationWithGlobal}
 	                fullCaptureStatusEnabledFmt: '켜짐 • records {n} • pending {p}',
 	                fullCaptureStatusErrorFmt: '오류: {error}',
 	
-	                finalGuideTitle: '최종 요약본',
-	                finalGuideNotReady: '아직 완료되지 않았습니다.',
-	                finalGuideBuilding: '최종 합본 생성 중...',
-	                finalGuideDownloadRendererSaveButton: '렌더러 저장파일 다운로드 (.json)',
-	                finalGuideDownloadTxtButton: '다운로드 (.txt)',
+		                finalGuideTitle: '최종 요약본',
+		                finalGuideNotReady: '아직 완료되지 않았습니다.',
+		                finalGuideBuilding: '최종 합본 생성 중...',
+		                finalGuideRefreshButton: '최종 합본 갱신',
+		                finalGuideRefreshPartialHint: '* 아직 미완료 모듈이 남아있습니다. 갱신은 “완료된 모듈만”으로 부분 합본을 만듭니다.',
+		                finalGuideRefreshConfirmPending: '아직 미완료 모듈이 남아있습니다. 완료된 모듈만으로 부분 합본을 갱신할까요?',
+		                finalGuideRefreshNoCompletedAlert: '아직 완료된 모듈이 없습니다. 2단계를 먼저 진행하세요.',
+		                finalGuideRefreshFailedAlert: '갱신에 실패했습니다. 로그를 확인하세요.',
+		                finalGuideDownloadRendererSaveButton: '렌더러 저장파일 다운로드 (.json)',
+		                finalGuideDownloadTxtButton: '다운로드 (.txt)',
 	
 	                exportNoTypeResultsError: '아직 유형분류 결과가 없습니다. (1단계를 먼저 실행하세요)',
 	                exportNoFinalGuideAlert: '아직 최종 요약본이 없습니다. (3단계를 완료하세요)',
