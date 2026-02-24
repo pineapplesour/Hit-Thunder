@@ -13282,29 +13282,39 @@ ${explanationWithGlobal}
 	                    logger.info("Workflow", "3단계가 실행 계획에서 제외되었습니다.");
 	                }
 
-	                if (!processController.stop) {
-	                    const remainingModules = Array.isArray(activeProcess.phase2_modules) &&
-	                        activeProcess.phase2_modules.some(m => {
-	                            const st = String(m?.status || '').toLowerCase();
-	                            return st === 'pending' || st === 'processing' || st === 'in_progress' || st === 'running';
-	                        });
-	                    if (fullRun && !remainingModules) {
-	                        activeProcess.status = 'completed';
-	                        logger.success("Workflow", "완료!");
-	                        updateStatus(__tGui('statusTitleCompleted'), __tGui('statusCompletedSubtext'));
-	                    } else {
-	                        activeProcess.status = 'paused';
-	                        logger.success("Workflow", "실행 계획이 종료되었습니다. (재개 가능)");
-	                        updateStatus(
-	                            __tGui('statusTitlePaused'),
-	                            remainingModules
-	                                ? __tGui('statusPausedPendingModulesSubtext')
-	                                : __tGui('statusPausedStopAfterSubtext')
-	                        );
-	                    }
-	                }
+		                if (!processController.stop) {
+		                    const remainingModules = Array.isArray(activeProcess.phase2_modules) &&
+		                        activeProcess.phase2_modules.some(m => {
+		                            const st = String(m?.status || '').toLowerCase();
+		                            return st === 'pending' || st === 'processing' || st === 'in_progress' || st === 'running';
+		                        });
+		                    // IMPORTANT: "완료"는 Phase3 export 후처리(정답/해설 채우기, subgroupify 등)까지 끝난 뒤에만.
+		                    // Otherwise the UI can show "completed" while postprocess is still running.
+		                    let finalReady = true;
+		                    try { finalReady = __isFinalManualFullyReadyForExport(); } catch { finalReady = false; }
 
-            } catch (error) {
+		                    if (fullRun && !remainingModules && finalReady) {
+		                        activeProcess.status = 'completed';
+		                        logger.success("Workflow", "완료!");
+		                        updateStatus(__tGui('statusTitleCompleted'), __tGui('statusCompletedSubtext'));
+		                    } else {
+		                        activeProcess.status = 'paused';
+		                        const waitingPost = fullRun && !remainingModules && !finalReady;
+		                        logger.success("Workflow", waitingPost ? "후처리 완료 대기 중(재개 가능)" : "실행 계획이 종료되었습니다. (재개 가능)");
+		                        updateStatus(
+		                            __tGui('statusTitlePaused'),
+		                            waitingPost
+		                                ? ((currentLang === 'ko')
+		                                    ? '후처리(정답/해설 채우기 등)가 아직 끝나지 않았습니다. 완료 후 최종 결과물을 다운로드할 수 있습니다.'
+		                                    : 'Export postprocess (answer/explanation fill, etc.) is not finished yet. Downloads will be enabled after it completes.')
+		                                : (remainingModules
+		                                    ? __tGui('statusPausedPendingModulesSubtext')
+		                                    : __tGui('statusPausedStopAfterSubtext'))
+		                        );
+		                    }
+		                }
+
+	            } catch (error) {
                 if (error.message.includes("cancelled")) {
                     activeProcess.status = 'stopped';
                     logger.warn("Workflow", "사용자가 중단했습니다.");
