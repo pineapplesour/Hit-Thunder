@@ -15218,6 +15218,89 @@ ${explanationWithGlobal}
             return { standardMarkdown: '', explanationMarkdown: '' };
         }
 
+        function __extractCoverageQidsFromExplanationMarkdown(explanationMarkdown) {
+            const text = String(explanationMarkdown ?? '');
+            if (!text) return [];
+            const lines = text.split(/\r?\n/);
+            const idx = lines.findIndex(l => /^\s*##\s*Coverage\b/i.test(String(l || '')));
+            if (idx < 0) return [];
+            const bodyLines = [];
+            for (let i = idx + 1; i < lines.length; i++) {
+                const line = String(lines[i] || '');
+                if (/^\s*#{1,6}\s+/.test(line)) break;
+                if (!line.trim()) {
+                    if (bodyLines.length) break;
+                    continue;
+                }
+                bodyLines.push(line);
+            }
+            const body = bodyLines.join(' ').trim();
+            if (!body) return [];
+            return body.split(',').map(s => String(s || '').trim()).filter(Boolean);
+        }
+
+        function __extractCoverageHeadingLine(explanationMarkdown) {
+            const text = String(explanationMarkdown ?? '');
+            if (!text) return '';
+            const lines = text.split(/\r?\n/);
+            const idx = lines.findIndex(l => /^\s*##\s*Coverage\b/i.test(String(l || '')));
+            if (idx < 0) return '';
+            return String(lines[idx] || '').trim();
+        }
+
+        function __upsertCoverageSectionInExplanation(explanationMarkdown, qids, preferredHeadingLine) {
+            const list = Array.isArray(qids) ? qids.map(s => String(s || '').trim()).filter(Boolean) : [];
+            if (!list.length) return String(explanationMarkdown ?? '').trim();
+            const qidsLine = list.join(', ');
+
+            const text = String(explanationMarkdown ?? '');
+            const headingFallback = String(preferredHeadingLine || '').trim() || '## Coverage (GLOBAL_QIDs)';
+            if (!text.trim()) {
+                return `${headingFallback}\n${qidsLine}`.trim();
+            }
+
+            const lines = text.split(/\r?\n/);
+            const idx = lines.findIndex(l => /^\s*##\s*Coverage\b/i.test(String(l || '')));
+            if (idx < 0) {
+                return `${headingFallback}\n${qidsLine}\n\n${text.trim()}`.trim();
+            }
+            const heading = String(lines[idx] || '').trim() || headingFallback;
+
+            let end = idx + 1;
+            for (let i = idx + 1; i < lines.length; i++) {
+                const line = String(lines[i] || '');
+                if (/^\s*#{1,6}\s+/.test(line)) { end = i; break; }
+                if (!line.trim()) { end = i + 1; break; }
+                end = i + 1;
+            }
+
+            const before = lines.slice(0, idx);
+            const after = lines.slice(end);
+            const rebuilt = [
+                ...before,
+                heading,
+                qidsLine,
+                '',
+                ...after
+            ].join('\n').trim();
+            return rebuilt;
+        }
+
+        function __extractDetailedExplanationBody(explanationMarkdown) {
+            const text = String(explanationMarkdown ?? '');
+            if (!text) return '';
+            const lines = text.split(/\r?\n/);
+            const isDetailHeading = (line) => {
+                const s = String(line || '');
+                return /^\s*##\s*Detailed Explanation\b/i.test(s) ||
+                    /^\s*##\s*상세\s*해설\b/.test(s) ||
+                    /^\s*##\s*자세한\s*해설\b/.test(s);
+            };
+            const idx = lines.findIndex(isDetailHeading);
+            if (idx < 0) return text.trim();
+            return lines.slice(idx + 1).join('\n').trim();
+        }
+
         async function repairImportedSaveObjectTypesAndGuides(obj) {
             const cloned = __deepClone(obj);
             const extracted = __extractTypesFromImportedSave(cloned);
@@ -15312,40 +15395,39 @@ ${explanationWithGlobal}
                             return exact * 100 + paren * 10 + (String(x.segment || '').length || 0);
                         };
                         const primary = list.slice().sort((a, b) => pickScore(b) - pickScore(a))[0];
-                        let merged = __replaceGuideSegmentTypeTitle(primary.segment, canonicalTitle).trimEnd();
+                        const pSeg = __replaceGuideSegmentTypeTitle(primary.segment, canonicalTitle).trim();
+                        const pParsed = __parseGuideSegmentToStandardAndExplanation(pSeg);
+                        let mergedStd = String(pParsed.standardMarkdown || '').trim();
+                        let mergedExp = String(pParsed.explanationMarkdown || '').trim();
 
+                        // Coverage: union coverage QIDs from all duplicates into the primary preface.
+                        const covHeading = __extractCoverageHeadingLine(mergedExp) || '## Coverage (GLOBAL_QIDs)';
+                        const covSet = new Set();
+                        list.forEach((o) => {
+                            __extractCoverageQidsFromExplanationMarkdown(o.explanationMarkdown).forEach(q => covSet.add(q));
+                        });
+                        if (covSet.size) {
+                            mergedExp = __upsertCoverageSectionInExplanation(mergedExp, Array.from(covSet), covHeading);
+                        }
+
+                        // Append ONLY the detailed explanation body from other duplicates.
                         const others = list.filter(x => x !== primary);
                         others.forEach((o) => {
-                            const extra = String(o.segment || '').trim();
-                            if (!extra) return;
-                            // Avoid duplicating identical content
-                            if (extra === String(primary.segment || '').trim()) return;
-
                             const noteTitle = String(o.title || '').trim() || canonicalTitle;
-                            const parts = [];
-                            parts.push('---');
-                            parts.push('');
-                            parts.push(`## (병합됨) ${noteTitle}`);
-                            parts.push('');
-                            if (o.standardMarkdown) {
-                                parts.push('### Standard Problem (merged)');
-                                parts.push('');
-                                parts.push(String(o.standardMarkdown).trim());
-                                parts.push('');
-                            }
-                            if (o.explanationMarkdown) {
-                                parts.push('### Guide (merged)');
-                                parts.push('');
-                                parts.push(String(o.explanationMarkdown).trim());
-                                parts.push('');
-                            } else {
-                                parts.push(String(extra).trim());
-                                parts.push('');
-                            }
-                            merged = (merged + '\n\n' + parts.join('\n')).trimEnd();
+                            const detailBody = __extractDetailedExplanationBody(o.explanationMarkdown);
+                            if (!detailBody) return;
+
+                            // Avoid duplicating identical content (best-effort)
+                            const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ');
+                            if (norm(mergedExp).includes(norm(detailBody))) return;
+
+                            mergedExp = (String(mergedExp || '').trimEnd() + '\n\n---\n\n' +
+                                `## (병합됨) ${noteTitle} — 상세 해설\n\n` +
+                                String(detailBody).trim()).trimEnd();
                         });
 
-                        mergedByLoose.set(key, merged.trim());
+                        const rebuilt = `# ${canonicalTitle}\n\n${mergedStd}\n\n---\n\n${mergedExp}`.trim() + '\n';
+                        mergedByLoose.set(key, rebuilt.trim());
                     });
 
                     const rebuiltSegments = [];
