@@ -12879,9 +12879,29 @@ ${explanationWithGlobal}
                 }).join('\n\n========================================\n\n');
 
                 finalState.content = manualContent;
-                finalState.status = 'completed';
+	
+                // IMPORTANT: If export postprocess is enabled (subgroupify / fill), Phase3 is only "completed"
+                // after postprocess finishes. Until then, keep status=processing to avoid premature "completed".
+                const cfg = getPipelineConfig(activeProcess);
+                const doSubgroup = !!cfg?.phase1?.subgrouping?.enabled;
+                const doFill = !!cfg?.phase0?.answerFill?.enabled;
+                const needsPostprocess = doSubgroup || doFill;
+                const cfgSig = needsPostprocess ? __computeExportPostprocessConfigSig(cfg, { doSubgroup, doFill }) : null;
+                finalState.postprocessRequired = needsPostprocess;
+                finalState.postprocessSig = cfgSig;
+	
+                const pp = activeProcess?.export_postprocess || {};
+                const ppOk = !needsPostprocess ||
+                    (String(pp?.status || '').toLowerCase() === 'completed' && (!cfgSig || pp?.configSig === cfgSig));
+	
+                finalState.status = ppOk ? 'completed' : 'processing';
                 logger.success("Phase3", "Final mastery manual collated successfully.");
-                logger.success("3단계", `최종 마스터리 매뉴얼 생성 완료: ${modules.length}개 유형 포함`);
+                logger.success(
+                    "3단계",
+                    ppOk
+                        ? `최종 마스터리 매뉴얼 생성 완료: ${modules.length}개 유형 포함`
+                        : `최종 요약본 생성 완료(후처리 진행 중): ${modules.length}개 유형 포함`
+                );
             } catch (e) {
                 finalState.status = 'error';
                 finalState.error = e.message;
@@ -14631,6 +14651,14 @@ ${explanationWithGlobal}
 
 		        function renderPhase3Final() {
 	            const g = activeProcess.phase3_finalManual || {};
+	            const cfg = getPipelineConfig(activeProcess);
+	            const postRequired = (typeof g?.postprocessRequired === 'boolean')
+	                ? g.postprocessRequired
+	                : (!!cfg?.phase1?.subgrouping?.enabled || !!cfg?.phase0?.answerFill?.enabled);
+	            const finalReady = __isFinalManualFullyReadyForExport();
+	            const effectiveStatus = finalReady
+	                ? (g.status || 'pending')
+	                : ((String(g?.status || '').toLowerCase() === 'completed' && g.content) ? 'processing' : (g.status || 'pending'));
 	            const mods = Array.isArray(activeProcess?.phase2_modules) ? activeProcess.phase2_modules : [];
 	            const hasCompletedModules = mods.some(m => (String(m?.status || '').toLowerCase() === 'completed'));
 	            const hasRemainingModules = mods.some(m => {
@@ -14641,12 +14669,19 @@ ${explanationWithGlobal}
 	                (g.status === 'pending'
 	                    ? __tGui('finalGuideNotReady')
 	                    : __tGui('finalGuideBuilding'));
+	            const pp = activeProcess?.export_postprocess || null;
+	            const ppHint = (g.content && postRequired && !finalReady)
+	                ? `<div class="muted" style="margin-top:6px; font-size:12px; line-height:1.4;">` +
+	                    `${escapeHtmlForInnerHTML((currentLang === 'ko') ? '후처리(정답/해설 채우기 등)가 끝날 때까지 최종 결과물 다운로드를 잠시 막습니다.' : 'Export postprocess (answer/explanation fill, etc.) is still running; downloads are disabled until it finishes.')}` +
+	                    `${pp && pp.status ? `<div style="margin-top:4px; font-family:monospace;">export_postprocess: ${escapeHtmlForInnerHTML(String(pp.status))}</div>` : ''}` +
+	                  `</div>`
+	                : '';
 
 		            return `
 			              <div class="ui-panel">
 		                  <h3 style="color: var(--accent);">
 		                    ${escapeHtmlForInnerHTML(__tGui('finalGuideTitle'))}
-		                    <span class="status-badge status-${g.status}">${g.status}</span>
+		                    <span class="status-badge status-${escapeHtmlForInnerHTML(effectiveStatus)}">${escapeHtmlForInnerHTML(effectiveStatus)}</span>
 		                  </h3>
 		                  ${g.error ? `<p style="color: var(--error-color);">${escapeHtmlForInnerHTML(g.error)}</p>` : ''}
 	                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top: 0.25rem;">
@@ -14657,13 +14692,14 @@ ${explanationWithGlobal}
 	                      </button>
 	                      <button class="ui-btn" id="download-renderer-save-btn"
 	                        style="border-color: var(--secondary-accent); background: rgba(56, 189, 248, 0.10);"
-	                        ${!g.content ? 'disabled' : ''}>
+	                        ${!finalReady ? 'disabled' : ''}>
 	                        ${escapeHtmlForInnerHTML(__tGui('finalGuideDownloadRendererSaveButton'))}
 	                      </button>
 	                    </div>
 	                    ${hasRemainingModules ? `<div style="margin-top:4px; font-size:11px; color:var(--text-3);">${escapeHtmlForInnerHTML(__tGui('finalGuideRefreshPartialHint'))}</div>` : ''}
+	                    ${ppHint}
 			                  <textarea class="ui-input" rows="20" readonly>${content}</textarea>
-			                  <button class="ui-btn" id="download-btn" style="margin-top: 1rem;" ${!g.content ? 'disabled' : ''}>
+			                  <button class="ui-btn" id="download-btn" style="margin-top: 1rem;" ${!finalReady ? 'disabled' : ''}>
 			                      ${escapeHtmlForInnerHTML(__tGui('finalGuideDownloadTxtButton'))}
 			                  </button>
 			              </div>
@@ -14871,6 +14907,12 @@ ${explanationWithGlobal}
         // Download final manual as .txt
         document.body.addEventListener('click', e => {
             if (e.target && e.target.id === 'download-btn') {
+                if (!__isFinalManualFullyReadyForExport()) {
+                    alert((currentLang === 'ko')
+                        ? '아직 최종 후처리(정답/해설 채우기 등)가 완료되지 않았습니다. 완료 후 다시 시도하세요.'
+                        : 'Final export postprocess (answer/explanation fill, etc.) is not finished yet. Try again after it completes.');
+                    return;
+                }
                 const ta = document.querySelector('#pipelines-content-container textarea');
                 const text = ta ? ta.value : '';
                 const blob = new Blob([text], { type: 'text/plain' });
@@ -16008,33 +16050,62 @@ ${explanationWithGlobal}
 	            };
 	        }
 
+	        function __computeExportPostprocessConfigSig(cfg, { doSubgroup, doFill } = {}) {
+	            try {
+	                return JSON.stringify({
+	                    model: getApiConfig()?.model || null,
+	                    doSubgroup: !!doSubgroup,
+	                    subgroupChunkTokens: doSubgroup ? (cfg?.phase1?.subgrouping?.chunkTokens ?? null) : null,
+	                    doFill: !!doFill,
+	                    fill: doFill ? __buildAnswerFillSettingsFromPipelineConfig(cfg) : null,
+	                });
+	            } catch {
+	                return String(Date.now());
+	            }
+	        }
+
+	        function __isFinalManualFullyReadyForExport() {
+	            const g = activeProcess?.phase3_finalManual || {};
+	            const guide = String(g?.content || '').trim();
+	            if (!guide) return false;
+	            const cfg = getPipelineConfig(activeProcess);
+	            const doSubgroup = !!cfg?.phase1?.subgrouping?.enabled;
+	            const doFill = !!cfg?.phase0?.answerFill?.enabled;
+	            const required = (typeof g?.postprocessRequired === 'boolean')
+	                ? g.postprocessRequired
+	                : (doSubgroup || doFill);
+	            if (!required) return true;
+	            const pp = activeProcess?.export_postprocess || null;
+	            if (!pp || String(pp?.status || '').toLowerCase() !== 'completed') return false;
+	            const sig = g?.postprocessSig || __computeExportPostprocessConfigSig(cfg, { doSubgroup, doFill });
+	            if (sig && pp?.configSig && sig !== pp.configSig) return false;
+	            return true;
+	        }
+
 	        async function runExportPostprocessIfEnabled() {
 	            const cfg = getPipelineConfig(activeProcess);
 	            const doSubgroup = !!cfg?.phase1?.subgrouping?.enabled;
 	            const doFill = !!cfg?.phase0?.answerFill?.enabled;
 	            if (!doSubgroup && !doFill) return { didRun: false };
-
-	            const phase3Ok = String(activeProcess?.phase3_finalManual?.status || '').toLowerCase() === 'completed';
-	            if (!phase3Ok) {
-	                logger.warn('ExportPostprocess', 'Skipped: Phase 3 is not completed (fmm_source not available).');
+	
+	            const guide = String(activeProcess?.phase3_finalManual?.content || '').trim();
+	            if (!guide) {
+	                logger.warn('ExportPostprocess', 'Skipped: Phase 3 guide content is not available yet (fmm_source not available).');
 	                return { didRun: false, skipped: 'phase3_not_completed' };
 	            }
 
-	            const cfgSig = (() => {
-	                try {
-	                    return JSON.stringify({
-	                        model: getApiConfig()?.model || null,
-	                        doSubgroup,
-	                        subgroupChunkTokens: doSubgroup ? (cfg?.phase1?.subgrouping?.chunkTokens ?? null) : null,
-	                        doFill,
-	                        fill: doFill ? __buildAnswerFillSettingsFromPipelineConfig(cfg) : null,
-	                    });
-	                } catch {
-	                    return String(Date.now());
-	                }
-	            })();
+	            const cfgSig = __computeExportPostprocessConfigSig(cfg, { doSubgroup, doFill });
+	            try {
+	                activeProcess.phase3_finalManual = activeProcess.phase3_finalManual || {};
+	                activeProcess.phase3_finalManual.postprocessRequired = true;
+	                activeProcess.phase3_finalManual.postprocessSig = cfgSig;
+	                activeProcess.phase3_finalManual.status = 'processing';
+	            } catch { }
+
 	            if (activeProcess?.export_postprocess?.status === 'completed' && activeProcess?.export_postprocess?.configSig === cfgSig) {
 	                logger.info('ExportPostprocess', 'Skipped: already completed with the same settings.');
+	                try { activeProcess.phase3_finalManual.status = 'completed'; } catch { }
+	                try { renderActiveProcess(); } catch { }
 	                return { didRun: false, skipped: 'already_completed' };
 	            }
 
@@ -16047,6 +16118,7 @@ ${explanationWithGlobal}
 
 	            const startedAt = new Date().toISOString();
 	            activeProcess.export_postprocess = { status: 'processing', startedAt, doSubgroup, doFill, configSig: cfgSig };
+	            try { activeProcess.phase3_finalManual.status = 'processing'; } catch { }
 
 	            try {
 	                let working = __buildFmmBundleForExportFromActiveProcess();
@@ -16086,11 +16158,13 @@ ${explanationWithGlobal}
 	                    'ExportPostprocess',
 	                    `Done. subgroupAssigned=${subgroupAssigned}, filledAnswers=${fillRes?.filledAnswers || 0}, filledExplanations=${fillRes?.filledExplanations || 0}`
 	                );
+	                try { activeProcess.phase3_finalManual.status = 'completed'; } catch { }
 	                renderActiveProcess();
 	                return { didRun: true, subgroupAssigned, fill: fillRes };
 	            } catch (e) {
 	                const msg = e?.message || String(e || '');
 	                activeProcess.export_postprocess = { status: 'error', startedAt, error: msg, configSig: cfgSig };
+	                try { activeProcess.phase3_finalManual.status = 'error'; } catch { }
 	                logger.warn('ExportPostprocess', `Failed: ${msg}`);
 	                renderActiveProcess();
 	                return { didRun: false, error: msg };
@@ -16133,6 +16207,12 @@ ${explanationWithGlobal}
 	        document.body.addEventListener('click', e => {
 	            if (e.target && e.target.id === 'download-renderer-save-btn') {
                 try {
+                    if (!__isFinalManualFullyReadyForExport()) {
+                        alert((currentLang === 'ko')
+                            ? '아직 최종 후처리(정답/해설 채우기 등)가 완료되지 않았습니다. 완료 후 다시 시도하세요.'
+                            : 'Final export postprocess (answer/explanation fill, etc.) is not finished yet. Try again after it completes.');
+                        return;
+                    }
                     const guide = String(activeProcess?.phase3_finalManual?.content || '').trim();
                     if (!guide) { alert(__tGui('exportNoFinalGuideAlert')); return; }
                     const { types } = __buildTypeProblemsBundleForExport();
@@ -16160,7 +16240,7 @@ ${explanationWithGlobal}
 	        });
 
 	        // Refresh/rebuild final manual (Phase 3) from current completed modules
-	        document.body.addEventListener('click', e => {
+	        document.body.addEventListener('click', async (e) => {
 	            const btn = (e?.target && typeof e.target.closest === 'function') ? e.target.closest('button') : null;
 	            if (!btn || btn.id !== 'refresh-final-guide-btn') return;
 	            try {
@@ -16184,6 +16264,11 @@ ${explanationWithGlobal}
 	                activeProcess.phase3_finalManual.error = null;
 	                renderActiveProcess();
 	                buildFinalManual();
+	                if (!processController.stop) {
+	                    try { await runExportPostprocessIfEnabled(); } catch (e) {
+	                        logger.warn('ExportPostprocess', `Failed (continuing): ${e?.message || e}`);
+	                    }
+	                }
 	            } catch (err) {
 	                logger.error('Phase3', `Final refresh failed: ${err?.message || err}`);
 	                alert(__tGui('finalGuideRefreshFailedAlert'));
