@@ -3332,12 +3332,13 @@
 
     // NEW: IndexedDB + localStorage snapshot of all fmm_* data
     // ideology: never lose work on refresh; keep export/import format as the single source of truth
-    const snapshotDB = (() => {
-      const LS_KEY = 'fmm_snapshot_bundle';
-      const DB_NAME = 'fmm_snapshot_db';
-      const STORE_NAME = 'snapshots';
-      let db = null;
-      let saveTimer = null;
+	    const snapshotDB = (() => {
+	      const LS_KEY = 'fmm_snapshot_bundle';
+	      const DB_NAME = 'fmm_snapshot_db';
+	      const STORE_NAME = 'snapshots';
+	      let db = null;
+	      let saveTimer = null;
+	      let disabled = false;
 
       function openDb() {
         return new Promise(resolve => {
@@ -3397,12 +3398,13 @@
         };
       }
 
-      function scheduleSave() {
-        if (saveTimer) clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => {
-          const bundle = buildBundle();
-          try {
-            if (window.localStorage) {
+	      function scheduleSave() {
+	        if (disabled) return;
+	        if (saveTimer) clearTimeout(saveTimer);
+	        saveTimer = setTimeout(() => {
+	          const bundle = buildBundle();
+	          try {
+	            if (window.localStorage) {
               window.localStorage.setItem(LS_KEY, JSON.stringify(bundle));
             }
           } catch {
@@ -3415,13 +3417,14 @@
           } catch { }
           saveToIdb(bundle);
         }, 300);
-      }
-      function saveNow() {
-        const bundle = buildBundle();
-        try {
-          if (window.localStorage) {
-            window.localStorage.setItem(LS_KEY, JSON.stringify(bundle));
-          }
+	      }
+	      function saveNow() {
+	        if (disabled) return;
+	        const bundle = buildBundle();
+	        try {
+	          if (window.localStorage) {
+	            window.localStorage.setItem(LS_KEY, JSON.stringify(bundle));
+	          }
         } catch {
           // ignore quota errors; IndexedDB may still succeed
         }
@@ -3430,13 +3433,25 @@
             window.sessionStorage.setItem(LS_KEY, JSON.stringify(bundle));
           }
         } catch { }
-        saveToIdb(bundle);
-      }
+	        saveToIdb(bundle);
+	      }
 
-      async function init() {
-        // 1) Try IndexedDB
-        let bundle = await loadFromIdb();
-        // 2) Fallback to localStorage
+	      function disable() {
+	        disabled = true;
+	        try { if (saveTimer) clearTimeout(saveTimer); } catch { }
+	        saveTimer = null;
+	        // Close current IndexedDB connection so deleteDatabase can succeed.
+	        try {
+	          dbReady.then(dbInst => {
+	            try { dbInst?.close(); } catch { }
+	          });
+	        } catch { }
+	      }
+
+	      async function init() {
+	        // 1) Try IndexedDB
+	        let bundle = await loadFromIdb();
+	        // 2) Fallback to localStorage
         if (!bundle) {
           try {
             if (window.localStorage) {
@@ -3483,13 +3498,13 @@
               try { render(); } catch { }
             }
           }
-        } catch {
-          // ignore hydration errors; user can manually re-render
-        }
-      }
+	        } catch {
+	          // ignore hydration errors; user can manually re-render
+	        }
+	      }
 
-      return { init, scheduleSave, saveNow };
-    })();
+	      return { init, scheduleSave, saveNow, disable };
+	    })();
 
     // Patch store mutators to autosave snapshots
     (function patchStoreForSnapshots() {
@@ -3624,10 +3639,18 @@
 		      return text;
 		    }
 
-		    async function maybeLoadExampleGuide() {
-		      try {
-		        // If user explicitly dismissed the example guide, never auto-load.
-		        if ((store.getItem('fmm_example_dismissed') || '0') === '1') return;
+			    async function maybeLoadExampleGuide() {
+			      try {
+			        // After a hard clear, keep the page empty on the next reload.
+			        // (Otherwise, example autoload can look like "data resurrected".)
+			        try {
+			          if (String(location.hash || '') === '#__fmm_hard_cleared__') {
+			            try { history.replaceState(null, '', location.href.split('#')[0]); } catch { }
+			            return;
+			          }
+			        } catch { }
+			        // If user explicitly dismissed the example guide, never auto-load.
+			        if ((store.getItem('fmm_example_dismissed') || '0') === '1') return;
 
 		        const existing = (store.getItem('fmm_source') || '').trim() || (sourceEl.value || '').trim();
 		        if (existing) return;
@@ -6305,11 +6328,11 @@
 	      // Ensure snapshots cannot resurrect the old guide if the user refreshes immediately.
 	      try { snapshotDB.saveNow(); } catch { }
 	    });
-	    hardClearBtn?.addEventListener('click', () => {
-		      const ok = confirm(
-		        (currentLang === 'ko')
-		          ? (
-		            '⚠️ 완전 삭제(Clear)를 진행하면 이 브라우저에 저장된 모든 데이터가 삭제됩니다.\n' +
+		    hardClearBtn?.addEventListener('click', async () => {
+			      const ok = confirm(
+			        (currentLang === 'ko')
+			          ? (
+			            '⚠️ 완전 삭제(Clear)를 진행하면 이 브라우저에 저장된 모든 데이터가 삭제됩니다.\n' +
 		            '- 문제 메모 / 유형 메모 / 글로벌 메모\n' +
 		            '- 문제 태그 / 오답·정답 기록 / 찍기 기록\n' +
 		            '- 시험지 / 채팅 / 설정\n\n' +
@@ -6325,31 +6348,61 @@
 		            'Continue?'
 		          )
 		      );
-	      if (!ok) return;
-	      const phrase = prompt((currentLang === 'ko') ? '정말 삭제하려면 DELETE 를 입력하세요.' : 'Type DELETE to confirm.');
-	      if (String(phrase || '').trim() !== 'DELETE') {
-	        alert((currentLang === 'ko') ? '취소되었습니다.' : 'Cancelled.');
-	        return;
-	      }
-      const removePrefixedKeys = (storage, prefix) => {
-        try {
-          if (!storage) return;
-          for (let i = storage.length - 1; i >= 0; i--) {
+		      if (!ok) return;
+		      const phrase = prompt((currentLang === 'ko') ? '정말 삭제하려면 DELETE 를 입력하세요.' : 'Type DELETE to confirm.');
+		      if (String(phrase || '').trim() !== 'DELETE') {
+		        alert((currentLang === 'ko') ? '취소되었습니다.' : 'Cancelled.');
+		        return;
+		      }
+	      // Disable snapshot saves before we touch storage.
+	      // Otherwise, the beforeunload/pagehide hooks can re-save the old state and "resurrect" data.
+	      try { window.__fmm_hard_clearing = true; } catch { }
+	      try { snapshotDB.disable?.(); } catch { }
+	      // Also wipe in-memory cache so nothing can be re-written from RAM.
+	      try { store.clear(); } catch { }
+	      try {
+	        sourceEl.value = '';
+	        outputEl.innerHTML = '';
+	        typesNavEl.style.display = 'none';
+	      } catch { }
+	      const removePrefixedKeys = (storage, prefix) => {
+	        try {
+	          if (!storage) return;
+	          for (let i = storage.length - 1; i >= 0; i--) {
             const k = storage.key(i);
             if (k && String(k).startsWith(prefix)) storage.removeItem(k);
           }
         } catch { }
-      };
-	      try { removePrefixedKeys(window.localStorage, 'fmm_'); } catch { }
-	      try { removePrefixedKeys(window.sessionStorage, 'fmm_'); } catch { }
-	      try { if ('indexedDB' in window) indexedDB.deleteDatabase('fmm_snapshot_db'); } catch { }
-	      try { if ('indexedDB' in window) indexedDB.deleteDatabase('fmm_multi_save_db'); } catch { }
-	      try { window.localStorage?.removeItem('fmmActiveSaveSlot'); } catch { }
-	      try { window.localStorage?.removeItem('fmmLoadedSaveSlot'); } catch { }
-		      try { statusEl.textContent = (currentLang === 'ko') ? '완전 삭제됨' : 'Hard cleared'; } catch { }
-		      alert((currentLang === 'ko') ? '삭제 완료. 페이지를 새로고침합니다.' : 'Done. Reloading the page.');
-		      try { location.reload(); } catch { }
-		    });
+	      };
+		      try { removePrefixedKeys(window.localStorage, 'fmm_'); } catch { }
+		      try { removePrefixedKeys(window.sessionStorage, 'fmm_'); } catch { }
+		      const deleteIdbDb = (name) => new Promise(resolve => {
+		        try {
+		          if (!('indexedDB' in window)) { resolve(false); return; }
+		          const req = indexedDB.deleteDatabase(name);
+		          let done = false;
+		          const finish = (ok) => { if (done) return; done = true; resolve(!!ok); };
+		          const t = setTimeout(() => finish(false), 3000);
+		          req.onsuccess = () => { clearTimeout(t); finish(true); };
+		          req.onerror = () => { clearTimeout(t); finish(false); };
+		          req.onblocked = () => { /* wait until timeout */ };
+		        } catch {
+		          resolve(false);
+		        }
+		      });
+		      try {
+		        await Promise.all([
+		          deleteIdbDb('fmm_snapshot_db'),
+		          deleteIdbDb('fmm_multi_save_db')
+		        ]);
+		      } catch { }
+		      try { window.localStorage?.removeItem('fmmActiveSaveSlot'); } catch { }
+		      try { window.localStorage?.removeItem('fmmLoadedSaveSlot'); } catch { }
+			      try { statusEl.textContent = (currentLang === 'ko') ? '완전 삭제됨' : 'Hard cleared'; } catch { }
+			      alert((currentLang === 'ko') ? '삭제 완료. 페이지를 새로고침합니다.' : 'Done. Reloading the page.');
+			      try { location.hash = '#__fmm_hard_cleared__'; } catch { }
+			      try { location.reload(); } catch { }
+			    });
 
     // ADD: PDF 저장 이벤트
 	    pdfBtn.addEventListener('click', () => {
